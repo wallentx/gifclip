@@ -3,9 +3,7 @@
 const state = {
   project: null,
   selectedSliceId: null,
-  previewAbort: null,
-  previewUrl: null,
-  frameRequestId: 0
+  framePreview: null
 };
 
 const els = {
@@ -79,6 +77,10 @@ function setControlsEnabled(enabled) {
   els.splitBtn.disabled = !enabled;
   els.dupeBtn.disabled = !enabled;
   els.speedInput.disabled = !enabled;
+}
+
+function ignorePreviewAbort(error) {
+  if (error.name !== "AbortError") setStatus(error.message);
 }
 
 function renderProject() {
@@ -172,9 +174,10 @@ async function loadSelectedSource() {
     });
     state.project = project;
     state.selectedSliceId = project.slices[0]?.id || null;
+    state.framePreview.cancel();
     els.frameSlider.value = String(project.currentFrame || 0);
     renderProject();
-    await showFrame(currentFrame());
+    await state.framePreview.show(currentFrame());
     const sourceName = project.source.basename || project.source.name || project.source.id;
     setStatus(`${sourceName}: ${project.source.width}x${project.source.height}, ${project.source.frameCount} frames.`);
   } finally {
@@ -182,41 +185,15 @@ async function loadSelectedSource() {
   }
 }
 
-async function showFrame(frameIndex) {
-  if (!state.project) return;
-
-  if (state.previewAbort) {
-    state.previewAbort.abort();
-  }
-
-  const requestId = state.frameRequestId + 1;
-  state.frameRequestId = requestId;
-  const controller = new AbortController();
-  state.previewAbort = controller;
-
-  const response = await fetch(`/api/frame/${state.project.id}/${frameIndex}?max=900`, {
-    signal: controller.signal
-  });
-  if (!response.ok) {
-    throw new Error("Preview failed");
-  }
-
-  const blob = await response.blob();
-  if (requestId !== state.frameRequestId) {
+function updateFrameFromSlider(delayMs) {
+  const frame = currentFrame();
+  if (state.project) state.project.currentFrame = frame;
+  renderProject();
+  if (delayMs === 0) {
+    state.framePreview.show(frame).catch(ignorePreviewAbort);
     return;
   }
-
-  if (state.previewUrl) {
-    URL.revokeObjectURL(state.previewUrl);
-  }
-  state.previewUrl = URL.createObjectURL(blob);
-  els.preview.src = state.previewUrl;
-  prefetchFrame(frameIndex + 1);
-}
-
-function prefetchFrame(frameIndex) {
-  if (!state.project || frameIndex >= state.project.source.frameCount) return;
-  fetch(`/api/frame/${state.project.id}/${frameIndex}?max=900`).catch(() => {});
+  state.framePreview.schedule(frame, delayMs);
 }
 
 function splitLocal(frame) {
@@ -279,14 +256,8 @@ els.loadBtn.addEventListener("click", () => {
   loadSelectedSource().catch((error) => setStatus(error.message));
 });
 
-els.frameSlider.addEventListener("input", () => {
-  const frame = currentFrame();
-  if (state.project) state.project.currentFrame = frame;
-  renderProject();
-  showFrame(frame).catch((error) => {
-    if (error.name !== "AbortError") setStatus(error.message);
-  });
-});
+els.frameSlider.addEventListener("input", () => updateFrameFromSlider(80));
+els.frameSlider.addEventListener("change", () => updateFrameFromSlider(0));
 
 els.splitBtn.addEventListener("click", () => {
   splitLocal(currentFrame());
@@ -352,6 +323,14 @@ els.exportBtn.addEventListener("click", async () => {
   } finally {
     renderProject();
   }
+});
+
+state.framePreview = window.GifclipFramePreview.createFramePreviewController({
+  getProjectId: () => state.project?.id || "",
+  getFrameCount: () => state.project?.source.frameCount || 0,
+  previewElement: els.preview,
+  setStatus,
+  onError: ignorePreviewAbort
 });
 
 renderProject();
