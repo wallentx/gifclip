@@ -1,0 +1,15 @@
+{
+  "name": "gifclip",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Localhost lossless GIF slice editor",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "verify": "node scripts/verify-sample.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

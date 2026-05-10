@@ -1,0 +1,5 @@
+node_modules/
+.gifclip/
+exports/
+*.tmp
+*.log
