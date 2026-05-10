@@ -44,3 +44,12 @@ Deferred to v2:
 - GIF overlays
 - Inserting other GIFs
 - Pixel compositing and re-encoding
+
+## Smoke Test
+
+After starting the server, these endpoints should respond:
+
+```bash
+curl -s http://127.0.0.1:8787/api/sources
+curl -s http://127.0.0.1:8787/ | head
+```
