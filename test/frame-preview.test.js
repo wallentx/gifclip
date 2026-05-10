@@ -1,7 +1,12 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { createFramePreviewController, stepFrame } = require("../public/frame-preview.js");
+const {
+  createFramePreviewController,
+  createHoldRepeatController,
+  holdRepeatIntervalMs,
+  stepFrame
+} = require("../public/frame-preview.js");
 
 test("scheduled frame preview coalesces rapid slider input", async () => {
   const scheduled = [];
@@ -60,4 +65,34 @@ test("stepFrame moves one frame and clamps to timeline bounds", () => {
   assert.equal(stepFrame(6, 1, 10), 7);
   assert.equal(stepFrame(0, -1, 10), 0);
   assert.equal(stepFrame(9, 1, 10), 9);
+});
+
+test("holdRepeatIntervalMs accelerates to a capped interval", () => {
+  assert.equal(holdRepeatIntervalMs(0), 180);
+  assert.equal(holdRepeatIntervalMs(1), 162);
+  assert.equal(holdRepeatIntervalMs(8), 50);
+  assert.equal(holdRepeatIntervalMs(100), 50);
+});
+
+test("hold repeat controller steps immediately, then accelerates until stopped", () => {
+  const timers = [];
+  const cleared = [];
+  const steps = [];
+  const controller = createHoldRepeatController({
+    step: () => steps.push(steps.length),
+    setTimer: (fn, delayMs) => {
+      timers.push({ fn, delayMs });
+      return timers.length;
+    },
+    clearTimer: (id) => cleared.push(id)
+  });
+
+  controller.start();
+  timers[0].fn();
+  timers[1].fn();
+  controller.stop();
+
+  assert.deepEqual(steps, [0, 1, 2]);
+  assert.deepEqual(timers.map((timer) => timer.delayMs), [350, 180, 162]);
+  assert.deepEqual(cleared, [3]);
 });

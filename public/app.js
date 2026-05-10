@@ -3,7 +3,8 @@
 const state = {
   project: null,
   selectedSliceId: null,
-  framePreview: null
+  framePreview: null,
+  frameHoldControllers: []
 };
 
 const els = {
@@ -180,6 +181,7 @@ async function loadSelectedSource() {
     });
     state.project = project;
     state.selectedSliceId = project.slices[0]?.id || null;
+    stopFrameHolds();
     state.framePreview.cancel();
     els.frameSlider.value = String(project.currentFrame || 0);
     renderProject();
@@ -202,11 +204,82 @@ function updateFrameFromSlider(delayMs) {
   state.framePreview.schedule(frame, delayMs);
 }
 
+function canMoveFrame(delta) {
+  if (!state.project) return false;
+  const frame = currentFrame();
+  return window.GifclipFramePreview.stepFrame(frame, delta, state.project.source.frameCount) !== frame;
+}
+
 function moveFrame(delta) {
   if (!state.project) return;
-  const frame = window.GifclipFramePreview.stepFrame(currentFrame(), delta, state.project.source.frameCount);
+  const current = currentFrame();
+  const frame = window.GifclipFramePreview.stepFrame(current, delta, state.project.source.frameCount);
+  if (frame === current) return;
+
   els.frameSlider.value = String(frame);
   updateFrameFromSlider(0);
+}
+
+function stopFrameHolds() {
+  for (const controller of state.frameHoldControllers) {
+    controller.stop();
+  }
+}
+
+function bindFrameHoldButton(button, delta) {
+  const controller = window.GifclipFramePreview.createHoldRepeatController({
+    step: () => moveFrame(delta),
+    canStep: () => canMoveFrame(delta)
+  });
+
+  function capturePointer(event) {
+    try {
+      button.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Some browsers reject capture after cancellation; repeating still works without it.
+    }
+  }
+
+  function releasePointer(event) {
+    try {
+      if (button.hasPointerCapture?.(event.pointerId)) {
+        button.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Ignore stale pointer ids.
+    }
+  }
+
+  button.addEventListener("pointerdown", (event) => {
+    if (button.disabled || event.button > 0) return;
+    event.preventDefault();
+    capturePointer(event);
+    controller.start();
+  });
+
+  button.addEventListener("pointerup", (event) => {
+    releasePointer(event);
+    controller.stop();
+  });
+  button.addEventListener("pointerleave", () => controller.stop());
+  button.addEventListener("pointercancel", () => controller.stop());
+  button.addEventListener("lostpointercapture", () => controller.stop());
+
+  button.addEventListener("keydown", (event) => {
+    if ((event.key !== "Enter" && event.key !== " ") || event.repeat) return;
+    event.preventDefault();
+    controller.start();
+  });
+  button.addEventListener("keyup", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      controller.stop();
+    }
+  });
+  button.addEventListener("blur", () => controller.stop());
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  return controller;
 }
 
 function splitLocal(frame) {
@@ -271,8 +344,6 @@ els.loadBtn.addEventListener("click", () => {
 
 els.frameSlider.addEventListener("input", () => updateFrameFromSlider(80));
 els.frameSlider.addEventListener("change", () => updateFrameFromSlider(0));
-els.prevFrameBtn.addEventListener("click", () => moveFrame(-1));
-els.nextFrameBtn.addEventListener("click", () => moveFrame(1));
 
 els.splitBtn.addEventListener("click", () => {
   splitLocal(currentFrame());
@@ -347,6 +418,10 @@ state.framePreview = window.GifclipFramePreview.createFramePreviewController({
   setStatus,
   onError: ignorePreviewAbort
 });
+state.frameHoldControllers = [
+  bindFrameHoldButton(els.prevFrameBtn, -1),
+  bindFrameHoldButton(els.nextFrameBtn, 1)
+];
 
 renderProject();
 loadSources().catch((error) => setStatus(error.message));
