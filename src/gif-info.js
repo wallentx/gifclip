@@ -58,6 +58,7 @@ async function loadGifInfo(sourcePath) {
   ]);
   return {
     ...parseGifInfo(stdout.toString("utf8"), basename),
+    sourcePath: filePath,
     id: sha256.slice(0, 16),
     sha256,
     bytes: stat.size,

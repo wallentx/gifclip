@@ -1,0 +1,262 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0d1013;
+  color: #e9edf2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #0d1013;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button,
+select,
+input[type="number"] {
+  min-height: 36px;
+  border: 1px solid #343d47;
+  border-radius: 6px;
+  background: #171d23;
+  color: #e9edf2;
+}
+
+button {
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+select:hover,
+input[type="number"]:hover:not(:disabled) {
+  border-color: #5e7184;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+a {
+  color: #7cc8ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.app {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border-bottom: 1px solid #252d36;
+  background: #13181e;
+}
+
+.sourceGroup {
+  display: grid;
+  gap: 4px;
+  min-width: min(360px, 52vw);
+}
+
+.sourceGroup label,
+.controlBlock label,
+.panelTitle {
+  font-size: 12px;
+  font-weight: 650;
+  color: #bac4cf;
+}
+
+.sourceGroup select {
+  width: 100%;
+  padding: 0 10px;
+}
+
+.workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
+.previewPanel {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: #050607;
+}
+
+.previewStage {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+#preview {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 104px);
+  object-fit: contain;
+}
+
+#preview:not([src]) {
+  width: min(560px, 78vw);
+  aspect-ratio: 16 / 10;
+  border: 1px dashed #2c3640;
+  border-radius: 8px;
+}
+
+#status {
+  min-height: 38px;
+  padding: 9px 12px;
+  border-top: 1px solid #1c232a;
+  color: #b6c0ca;
+  background: #0b0e11;
+  overflow-wrap: anywhere;
+}
+
+.sidePanel {
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid #252d36;
+  background: #11161b;
+  padding: 12px;
+}
+
+.controlBlock {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+#frameSlider {
+  width: 100%;
+  accent-color: #7cc8ff;
+}
+
+.muted {
+  color: #98a5b2;
+  font-size: 13px;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+#speedInput {
+  width: 128px;
+  padding: 0 10px;
+}
+
+.sliceList {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.emptyState {
+  border: 1px dashed #303945;
+  border-radius: 8px;
+  padding: 14px;
+  color: #98a5b2;
+}
+
+.slice {
+  border: 1px solid #303a45;
+  border-radius: 8px;
+  padding: 10px;
+  background: #171d23;
+}
+
+.slice.active {
+  border-color: #7cc8ff;
+  background: #1a232b;
+}
+
+.slice.deleted {
+  opacity: 0.62;
+}
+
+.sliceTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sliceName {
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sliceMeta {
+  display: grid;
+  gap: 4px;
+  color: #aab5c0;
+  font-size: 13px;
+}
+
+@media (max-width: 840px) {
+  .toolbar {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .sourceGroup {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .sidePanel {
+    border-left: 0;
+    border-top: 1px solid #252d36;
+  }
+
+  #preview {
+    max-height: 56vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar button,
+  .toolbar a {
+    flex: 1 1 auto;
+  }
+}
