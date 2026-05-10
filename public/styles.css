@@ -156,6 +156,18 @@ a:hover {
   accent-color: #7cc8ff;
 }
 
+.frameControlRow {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  align-items: center;
+  gap: 8px;
+}
+
+.frameControlRow button {
+  min-width: 0;
+  padding-inline: 0;
+}
+
 .muted {
   color: #98a5b2;
   font-size: 13px;

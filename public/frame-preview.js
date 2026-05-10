@@ -11,6 +11,15 @@
     return `/api/frame/${encodeURIComponent(projectId)}/${frameIndex}?max=${maxSize}`;
   }
 
+  function clampFrame(frameIndex, frameCount) {
+    if (!Number.isFinite(frameIndex) || !Number.isFinite(frameCount) || frameCount <= 0) return 0;
+    return Math.min(Math.max(Math.trunc(frameIndex), 0), frameCount - 1);
+  }
+
+  function stepFrame(currentFrame, delta, frameCount) {
+    return clampFrame(currentFrame + delta, frameCount);
+  }
+
   function createFramePreviewController(options) {
     const fetchFrame = options.fetchFrame || fetch;
     const getProjectId = options.getProjectId;
@@ -89,5 +98,5 @@
     return { cancel, schedule, show };
   }
 
-  return { createFramePreviewController, frameUrl };
+  return { clampFrame, createFramePreviewController, frameUrl, stepFrame };
 });

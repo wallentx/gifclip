@@ -14,6 +14,8 @@ const els = {
   preview: document.querySelector("#preview"),
   status: document.querySelector("#status"),
   frameSlider: document.querySelector("#frameSlider"),
+  prevFrameBtn: document.querySelector("#prevFrameBtn"),
+  nextFrameBtn: document.querySelector("#nextFrameBtn"),
   frameLabel: document.querySelector("#frameLabel"),
   delayLabel: document.querySelector("#delayLabel"),
   splitBtn: document.querySelector("#splitBtn"),
@@ -74,6 +76,8 @@ function nextSliceId(slices) {
 function setControlsEnabled(enabled) {
   els.exportBtn.disabled = !enabled;
   els.frameSlider.disabled = !enabled;
+  els.prevFrameBtn.disabled = !enabled;
+  els.nextFrameBtn.disabled = !enabled;
   els.splitBtn.disabled = !enabled;
   els.dupeBtn.disabled = !enabled;
   els.speedInput.disabled = !enabled;
@@ -103,6 +107,8 @@ function renderProject() {
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
   els.delayLabel.textContent = `Delay: ${project.source.delaysCs[frame] || 0} cs`;
+  els.prevFrameBtn.disabled = frame <= 0;
+  els.nextFrameBtn.disabled = frame >= project.source.frameCount - 1;
 
   const active = selectedSlice();
   els.speedInput.value = active ? String(active.speed) : "1";
@@ -196,6 +202,13 @@ function updateFrameFromSlider(delayMs) {
   state.framePreview.schedule(frame, delayMs);
 }
 
+function moveFrame(delta) {
+  if (!state.project) return;
+  const frame = window.GifclipFramePreview.stepFrame(currentFrame(), delta, state.project.source.frameCount);
+  els.frameSlider.value = String(frame);
+  updateFrameFromSlider(0);
+}
+
 function splitLocal(frame) {
   if (!state.project || !canSplitAt(frame)) return;
 
@@ -258,6 +271,8 @@ els.loadBtn.addEventListener("click", () => {
 
 els.frameSlider.addEventListener("input", () => updateFrameFromSlider(80));
 els.frameSlider.addEventListener("change", () => updateFrameFromSlider(0));
+els.prevFrameBtn.addEventListener("click", () => moveFrame(-1));
+els.nextFrameBtn.addEventListener("click", () => moveFrame(1));
 
 els.splitBtn.addEventListener("click", () => {
   splitLocal(currentFrame());

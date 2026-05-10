@@ -29,7 +29,11 @@
         <aside class="sidePanel" aria-label="Timeline and slices">
           <section class="controlBlock">
             <label for="frameSlider">Frame <span id="frameLabel">0</span></label>
-            <input id="frameSlider" type="range" min="0" max="0" value="0" disabled>
+            <div class="frameControlRow">
+              <button id="prevFrameBtn" type="button" disabled>Prev</button>
+              <input id="frameSlider" type="range" min="0" max="0" value="0" disabled>
+              <button id="nextFrameBtn" type="button" disabled>Next</button>
+            </div>
             <div id="delayLabel" class="muted">Delay: 0 cs</div>
           </section>
 
