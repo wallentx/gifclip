@@ -12,6 +12,8 @@ const { rootDir, ensureRuntimeDirs, assertInsideRoot } = require("./src/paths");
 const { checkRequiredTools } = require("./src/tools");
 
 const projects = new Map();
+const MIN_PREVIEW_SIZE = 120;
+const MAX_PREVIEW_SIZE = 1200;
 
 function listSources() {
   return fs.readdirSync(rootDir)
@@ -21,6 +23,29 @@ function listSources() {
       const stat = fs.statSync(filePath);
       return { name, bytes: stat.size };
     });
+}
+
+function projectFromRequest(clientProject) {
+  if (!clientProject || typeof clientProject.id !== "string") {
+    throw new Error("Project id is required");
+  }
+  const trusted = projects.get(clientProject.id);
+  if (!trusted) {
+    throw new Error(`Unknown project: ${clientProject.id}`);
+  }
+  return {
+    ...clientProject,
+    id: trusted.id,
+    source: trusted.source
+  };
+}
+
+function previewSize(value) {
+  const size = Number(value || "900");
+  if (!Number.isFinite(size)) {
+    return 900;
+  }
+  return Math.max(MIN_PREVIEW_SIZE, Math.min(MAX_PREVIEW_SIZE, Math.trunc(size)));
 }
 
 async function handleApi(req, res) {
@@ -46,7 +71,7 @@ async function handleApi(req, res) {
     const project = projects.get(projectId);
     if (!project) throw new Error(`Unknown project: ${projectId}`);
     const frameIndex = Number(frameText);
-    const maxSize = Number(url.searchParams.get("max") || "900");
+    const maxSize = previewSize(url.searchParams.get("max"));
     const previewPath = await ensurePreview(project.source, frameIndex, maxSize);
     res.writeHead(200, { "content-type": "image/jpeg" });
     fs.createReadStream(previewPath).pipe(res);
@@ -55,7 +80,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/analyze-duplicates") {
     const body = await readJson(req);
-    const project = normalizeProject(body.project);
+    const project = normalizeProject(projectFromRequest(body.project));
     const slice = project.slices.find((item) => item.id === body.sliceId);
     if (!slice) throw new Error(`Unknown slice: ${body.sliceId}`);
     const analysis = await analyzeAdjacentDuplicates(project.source, slice.start, slice.end);
@@ -67,7 +92,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/export") {
     const body = await readJson(req);
-    const project = normalizeProject(body.project);
+    const project = projectFromRequest(body.project);
     const exported = await exportLossless(project);
     sendJson(res, 200, exported);
     return;

@@ -33,7 +33,7 @@ function assertSpeed(speed) {
 }
 
 function cloneSlice(slice) {
-  return {
+  const cloned = {
     id: slice.id,
     start: slice.start,
     end: slice.end,
@@ -41,11 +41,18 @@ function cloneSlice(slice) {
     speed: slice.speed,
     duplicateFrames: Array.isArray(slice.duplicateFrames) ? [...slice.duplicateFrames] : []
   };
+  if (Object.hasOwn(slice, "overlays")) {
+    cloned.overlays = slice.overlays;
+  }
+  if (Object.hasOwn(slice, "inserts")) {
+    cloned.inserts = slice.inserts;
+  }
+  return cloned;
 }
 
 function sanitizeDuplicateFrames(slice) {
   return [...new Set(slice.duplicateFrames)]
-    .filter((frame) => Number.isInteger(frame) && frame >= slice.start && frame <= slice.end)
+    .filter((frame) => Number.isInteger(frame) && frame > slice.start && frame <= slice.end)
     .sort((a, b) => a - b);
 }
 
@@ -206,16 +213,22 @@ function buildFramePlan(project) {
       continue;
     }
     const duplicates = new Set(slice.duplicateFrames);
+    let lastKeptFrame = null;
     for (let index = slice.start; index <= slice.end; index += 1) {
+      const originalDelay = normalized.source.delaysCs[index];
+      const delayCs = Math.max(1, Math.round(originalDelay / slice.speed));
       if (duplicates.has(index)) {
+        if (lastKeptFrame) {
+          lastKeptFrame.delayCs += delayCs;
+        }
         continue;
       }
-      const originalDelay = normalized.source.delaysCs[index];
-      frames.push({
+      lastKeptFrame = {
         sourceIndex: index,
-        delayCs: Math.max(1, Math.round(originalDelay / slice.speed)),
+        delayCs,
         sliceId: slice.id
-      });
+      };
+      frames.push(lastKeptFrame);
     }
   }
 

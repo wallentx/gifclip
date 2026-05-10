@@ -45,7 +45,13 @@ function assertGifPath(sourcePath) {
 }
 
 function hashFile(filePath) {
-  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
 }
 
 async function loadGifInfo(sourcePath) {
@@ -54,7 +60,7 @@ async function loadGifInfo(sourcePath) {
   const [{ stdout }, stat, sha256] = await Promise.all([
     runTool("gifsicle", ["--info", filePath]),
     fs.promises.stat(filePath),
-    Promise.resolve(hashFile(filePath))
+    hashFile(filePath)
   ]);
   return {
     ...parseGifInfo(stdout.toString("utf8"), basename),

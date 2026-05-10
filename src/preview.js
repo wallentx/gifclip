@@ -3,6 +3,9 @@ const path = require("node:path");
 const { previewCacheDir, ensureDir } = require("./paths");
 const { runTool } = require("./tools");
 
+const inflightPreviews = new Map();
+let previewQueue = Promise.resolve();
+
 function previewCachePath(source, frameIndex, maxSize) {
   const safeHash = source.sha256.slice(0, 16);
   return path.join(previewCacheDir, `${safeHash}-${frameIndex}-${maxSize}.jpg`);
@@ -35,7 +38,16 @@ async function ensurePreview(source, frameIndex, maxSize = 900) {
   ensureDir(previewCacheDir);
   const outputPath = previewCachePath(source, frameIndex, maxSize);
   if (!fs.existsSync(outputPath)) {
-    await runTool("ffmpeg", ffmpegPreviewArgs(source.sourcePath, frameIndex, maxSize, outputPath));
+    if (!inflightPreviews.has(outputPath)) {
+      const pending = previewQueue.then(() =>
+        fs.existsSync(outputPath)
+          ? undefined
+          : runTool("ffmpeg", ffmpegPreviewArgs(source.sourcePath, frameIndex, maxSize, outputPath))
+      );
+      inflightPreviews.set(outputPath, pending.finally(() => inflightPreviews.delete(outputPath)));
+      previewQueue = pending.catch(() => {});
+    }
+    await inflightPreviews.get(outputPath);
   }
   return outputPath;
 }

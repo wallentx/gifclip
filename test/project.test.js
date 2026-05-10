@@ -95,12 +95,24 @@ test("buildFramePlan applies slice speed to frame delays", () => {
 
 test("buildFramePlan omits duplicate frames after sanitizing them", () => {
   let project = splitAtFrame(createProject(source), 2);
-  project = markDuplicateFrames(project, "slice-2", [5, 3, 5, 2, 4.5, 8]);
+  project = markDuplicateFrames(project, "slice-2", [5, 5, 2, 4.5, 8]);
 
   assert.deepEqual(buildFramePlan(project).frames, [
     { sourceIndex: 0, delayCs: 10, sliceId: "slice-1" },
     { sourceIndex: 1, delayCs: 20, sliceId: "slice-1" },
     { sourceIndex: 2, delayCs: 30, sliceId: "slice-1" },
-    { sourceIndex: 4, delayCs: 50, sliceId: "slice-2" }
+    { sourceIndex: 3, delayCs: 40, sliceId: "slice-2" },
+    { sourceIndex: 4, delayCs: 110, sliceId: "slice-2" }
+  ]);
+});
+
+test("buildFramePlan folds duplicate duration after slice speed", () => {
+  let project = splitAtFrame(createProject(source), 2);
+  project = setSliceSpeed(project, "slice-2", 2);
+  project = markDuplicateFrames(project, "slice-2", [5]);
+
+  assert.deepEqual(buildFramePlan(project).frames.slice(3), [
+    { sourceIndex: 3, delayCs: 20, sliceId: "slice-2" },
+    { sourceIndex: 4, delayCs: 55, sliceId: "slice-2" }
   ]);
 });

@@ -6,6 +6,7 @@ const {
   delayBatchArgs,
   exportModeForProject
 } = require("../src/exporter");
+const { normalizeProject } = require("../src/project");
 
 const source = {
   id: "abc",
@@ -85,4 +86,10 @@ test("exportModeForProject rejects inserts", () => {
     () => exportModeForProject(projectWithSlice({ inserts: [{ sourcePath: "/repo/other.gif" }] })),
     /inserts/
   );
+});
+
+test("exportModeForProject rejects unsupported edits after normalization", () => {
+  const normalized = normalizeProject(projectWithSlice({ overlays: [{ text: "hello" }] }));
+
+  assert.throws(() => exportModeForProject(normalized), /overlays/);
 });
