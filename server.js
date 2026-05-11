@@ -8,7 +8,7 @@ const { exportLossless } = require("./src/exporter");
 const { loadGifInfo } = require("./src/gif-info");
 const { sendError, sendJson, readJson, sendStatic } = require("./src/http-utils");
 const { createProject, markDuplicateFrames, normalizeProject } = require("./src/project");
-const { ensurePreview } = require("./src/preview");
+const { ensurePreview, ensurePreviewRange } = require("./src/preview");
 const { rootDir, ensureRuntimeDirs, assertInsideRoot } = require("./src/paths");
 const { checkRequiredTools } = require("./src/tools");
 
@@ -16,6 +16,8 @@ const projects = new Map();
 const exportJobs = createExportJobStore({ exportLossless });
 const MIN_PREVIEW_SIZE = 120;
 const MAX_PREVIEW_SIZE = 1200;
+const DEFAULT_PREVIEW_WINDOW_FRAMES = 41;
+const MAX_PREVIEW_WINDOW_FRAMES = 121;
 
 function listSources() {
   return fs.readdirSync(rootDir)
@@ -50,6 +52,14 @@ function previewSize(value) {
   return Math.max(MIN_PREVIEW_SIZE, Math.min(MAX_PREVIEW_SIZE, Math.trunc(size)));
 }
 
+function previewWindowFrames(value) {
+  const size = Number(value || DEFAULT_PREVIEW_WINDOW_FRAMES);
+  if (!Number.isFinite(size)) {
+    return DEFAULT_PREVIEW_WINDOW_FRAMES;
+  }
+  return Math.max(1, Math.min(MAX_PREVIEW_WINDOW_FRAMES, Math.trunc(size)));
+}
+
 async function handleApi(req, res) {
   const url = new URL(req.url, "http://localhost");
 
@@ -77,6 +87,23 @@ async function handleApi(req, res) {
     const previewPath = await ensurePreview(project.source, frameIndex, maxSize);
     res.writeHead(200, { "content-type": "image/jpeg" });
     fs.createReadStream(previewPath).pipe(res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/prewarm-preview") {
+    const body = await readJson(req);
+    const project = projectFromRequest(body.project);
+    const maxSize = previewSize(body.max);
+    const range = await ensurePreviewRange(project.source, Number(body.start), Number(body.end), maxSize, {
+      center: Number(body.center),
+      maxFrames: previewWindowFrames(body.maxFrames)
+    });
+    sendJson(res, 200, {
+      start: range.start,
+      end: range.end,
+      count: range.count,
+      generated: range.generated
+    });
     return;
   }
 

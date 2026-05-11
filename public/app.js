@@ -5,10 +5,13 @@ const state = {
   selectedSliceId: null,
   framePreview: null,
   frameHoldControllers: [],
+  previewPrewarmRequestId: 0,
   playbackTimer: null,
   playing: false,
   exporting: false
 };
+
+const PREVIEW_WINDOW_FRAMES = 17;
 
 const els = {
   sourceSelect: document.querySelector("#sourceSelect"),
@@ -133,6 +136,37 @@ function ignorePreviewAbort(error) {
   if (error.name !== "AbortError") setStatus(error.message);
 }
 
+function prewarmPreviewWindow(frame = currentFrame()) {
+  if (!state.project || state.playing) return;
+
+  const range = selectedFrameRange();
+  const requestId = state.previewPrewarmRequestId + 1;
+  state.previewPrewarmRequestId = requestId;
+
+  api("/api/prewarm-preview", {
+    method: "POST",
+    body: JSON.stringify({
+      project: { id: state.project.id },
+      start: range.start,
+      end: range.end,
+      center: frame,
+      max: 900,
+      maxFrames: PREVIEW_WINDOW_FRAMES
+    })
+  }).catch((error) => {
+    if (requestId === state.previewPrewarmRequestId) {
+      console.debug("Preview prewarm failed", error);
+    }
+  });
+}
+
+async function showFrame(frame, options = {}) {
+  await state.framePreview.show(frame);
+  if (options.prewarm !== false) {
+    prewarmPreviewWindow(frame);
+  }
+}
+
 function updatePlayButton(range = selectedFrameRange()) {
   const canPlay = Boolean(state.project) && range.end > range.start;
   els.playBtn.disabled = !canPlay;
@@ -243,7 +277,7 @@ async function loadSelectedSource() {
     state.framePreview.cancel();
     els.frameSlider.value = String(project.currentFrame || 0);
     renderProject();
-    await state.framePreview.show(currentFrame());
+    await showFrame(currentFrame());
     const sourceName = project.source.basename || project.source.name || project.source.id;
     setStatus(`${sourceName}: ${project.source.width}x${project.source.height}, ${project.source.frameCount} frames.`);
   } finally {
@@ -251,12 +285,12 @@ async function loadSelectedSource() {
   }
 }
 
-function updateFrameFromSlider(delayMs) {
+function updateFrameFromSlider(delayMs, options = {}) {
   const frame = currentFrame();
   if (state.project) state.project.currentFrame = frame;
   renderProject();
   if (delayMs === 0) {
-    state.framePreview.show(frame).catch(ignorePreviewAbort);
+    showFrame(frame, options).catch(ignorePreviewAbort);
     return;
   }
   state.framePreview.schedule(frame, delayMs);
@@ -293,7 +327,7 @@ function schedulePlaybackTick() {
 
     const nextFrame = window.GifclipFramePreview.nextPlaybackFrame(currentFrame(), selectedFrameRange());
     els.frameSlider.value = String(nextFrame);
-    updateFrameFromSlider(0);
+    updateFrameFromSlider(0, { prewarm: false });
     schedulePlaybackTick();
   }, playbackDelayForFrame(currentFrame()));
 }
@@ -421,7 +455,7 @@ function splitLocal(frame) {
   state.project = project;
   state.selectedSliceId = right.id;
   renderProject();
-  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
+  showFrame(currentFrame()).catch(ignorePreviewAbort);
   setStatus(`Split at frame ${frame + 1}.`);
 }
 
@@ -446,7 +480,7 @@ function selectSlice(sliceId) {
   stopPlayback();
   stopFrameHolds();
   renderProject();
-  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
+  showFrame(currentFrame()).catch(ignorePreviewAbort);
 }
 
 function toggleSliceDeleted(sliceId) {
@@ -458,7 +492,7 @@ function toggleSliceDeleted(sliceId) {
   stopPlayback();
   stopFrameHolds();
   renderProject();
-  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
+  showFrame(currentFrame()).catch(ignorePreviewAbort);
   setStatus(`${slice.id} ${slice.deleted ? "deleted" : "restored"}.`);
 }
 
