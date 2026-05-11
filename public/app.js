@@ -4,7 +4,10 @@ const state = {
   project: null,
   selectedSliceId: null,
   framePreview: null,
-  frameHoldControllers: []
+  frameHoldControllers: [],
+  playbackTimer: null,
+  playing: false,
+  exporting: false
 };
 
 const els = {
@@ -12,9 +15,13 @@ const els = {
   loadBtn: document.querySelector("#loadBtn"),
   exportBtn: document.querySelector("#exportBtn"),
   outputLink: document.querySelector("#outputLink"),
+  exportProgress: document.querySelector("#exportProgress"),
+  exportBar: document.querySelector("#exportBar"),
+  exportPhase: document.querySelector("#exportPhase"),
   preview: document.querySelector("#preview"),
   status: document.querySelector("#status"),
   frameSlider: document.querySelector("#frameSlider"),
+  playBtn: document.querySelector("#playBtn"),
   prevFrameBtn: document.querySelector("#prevFrameBtn"),
   nextFrameBtn: document.querySelector("#nextFrameBtn"),
   frameLabel: document.querySelector("#frameLabel"),
@@ -46,6 +53,33 @@ function setStatus(message) {
   els.status.textContent = message;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function setExportProgress(job) {
+  els.exportProgress.hidden = false;
+  els.exportBar.value = job.progress || 0;
+  const suffix = Number.isFinite(job.progress) ? ` ${job.progress}%` : "";
+  els.exportPhase.textContent = `${job.phase || "Exporting"}${suffix}`;
+}
+
+async function waitForExportJob(jobId) {
+  for (;;) {
+    const { job } = await api(`/api/export/status/${encodeURIComponent(jobId)}`);
+    setExportProgress(job);
+
+    if (job.done) {
+      if (job.error) {
+        throw new Error(job.error);
+      }
+      return job.result;
+    }
+
+    await sleep(350);
+  }
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return "";
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -70,6 +104,11 @@ function selectedFrameRange() {
   return window.GifclipFramePreview.frameRangeForSlice(selectedSlice(), state.project.source.frameCount);
 }
 
+function selectedSliceSpeed() {
+  const slice = selectedSlice();
+  return slice ? slice.speed : 1;
+}
+
 function nextSliceId(slices) {
   let max = 0;
   for (const slice of slices) {
@@ -80,8 +119,9 @@ function nextSliceId(slices) {
 }
 
 function setControlsEnabled(enabled) {
-  els.exportBtn.disabled = !enabled;
+  els.exportBtn.disabled = !enabled || state.exporting;
   els.frameSlider.disabled = !enabled;
+  els.playBtn.disabled = !enabled;
   els.prevFrameBtn.disabled = !enabled;
   els.nextFrameBtn.disabled = !enabled;
   els.splitBtn.disabled = !enabled;
@@ -91,6 +131,12 @@ function setControlsEnabled(enabled) {
 
 function ignorePreviewAbort(error) {
   if (error.name !== "AbortError") setStatus(error.message);
+}
+
+function updatePlayButton(range = selectedFrameRange()) {
+  const canPlay = Boolean(state.project) && range.end > range.start;
+  els.playBtn.disabled = !canPlay;
+  els.playBtn.textContent = state.playing ? "Pause" : "Play";
 }
 
 function renderProject() {
@@ -103,6 +149,7 @@ function renderProject() {
     els.frameSlider.value = "0";
     els.frameLabel.textContent = "0";
     els.delayLabel.textContent = "Delay: 0 cs";
+    els.playBtn.textContent = "Play";
     els.speedInput.value = "1";
     els.sliceList.innerHTML = '<div class="emptyState">No GIF loaded.</div>';
     return;
@@ -117,6 +164,7 @@ function renderProject() {
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
   els.delayLabel.textContent = `Delay: ${project.source.delaysCs[frame] || 0} cs`;
+  updatePlayButton(range);
   els.prevFrameBtn.disabled = frame <= range.start;
   els.nextFrameBtn.disabled = frame >= range.end;
 
@@ -181,6 +229,8 @@ async function loadSelectedSource() {
   setStatus("Loading GIF metadata...");
   els.loadBtn.disabled = true;
   els.outputLink.hidden = true;
+  els.exportProgress.hidden = true;
+  stopPlayback();
 
   try {
     const { project } = await api("/api/load", {
@@ -212,6 +262,61 @@ function updateFrameFromSlider(delayMs) {
   state.framePreview.schedule(frame, delayMs);
 }
 
+function clearPlaybackTimer() {
+  if (state.playbackTimer !== null) {
+    clearTimeout(state.playbackTimer);
+    state.playbackTimer = null;
+  }
+}
+
+function stopPlayback() {
+  state.playing = false;
+  clearPlaybackTimer();
+  updatePlayButton();
+}
+
+function playbackDelayForFrame(frame) {
+  return window.GifclipFramePreview.playbackDelayMs(
+    state.project?.source.delaysCs,
+    frame,
+    selectedSliceSpeed()
+  );
+}
+
+function schedulePlaybackTick() {
+  clearPlaybackTimer();
+  if (!state.playing || !state.project) return;
+
+  state.playbackTimer = setTimeout(() => {
+    state.playbackTimer = null;
+    if (!state.playing || !state.project) return;
+
+    const nextFrame = window.GifclipFramePreview.nextPlaybackFrame(currentFrame(), selectedFrameRange());
+    els.frameSlider.value = String(nextFrame);
+    updateFrameFromSlider(0);
+    schedulePlaybackTick();
+  }, playbackDelayForFrame(currentFrame()));
+}
+
+function startPlayback() {
+  if (!state.project) return;
+  const range = selectedFrameRange();
+  if (range.end <= range.start) return;
+
+  stopFrameHolds();
+  state.playing = true;
+  updatePlayButton(range);
+  schedulePlaybackTick();
+}
+
+function togglePlayback() {
+  if (state.playing) {
+    stopPlayback();
+    return;
+  }
+  startPlayback();
+}
+
 function canMoveFrame(delta) {
   if (!state.project) return false;
   const frame = currentFrame();
@@ -220,6 +325,7 @@ function canMoveFrame(delta) {
 
 function moveFrame(delta) {
   if (!state.project) return;
+  stopPlayback();
   const current = currentFrame();
   const frame = window.GifclipFramePreview.stepFrameWithinRange(current, delta, selectedFrameRange());
   if (frame === current) return;
@@ -294,6 +400,7 @@ function bindFrameHoldButton(button, delta) {
 
 function splitLocal(frame) {
   if (!state.project || !canSplitAt(frame)) return;
+  stopPlayback();
 
   const project = structuredClone(state.project);
   const sliceIndex = project.slices.findIndex((slice) => frame >= slice.start && frame < slice.end);
@@ -336,6 +443,7 @@ function updateSelectedSpeed() {
 
 function selectSlice(sliceId) {
   state.selectedSliceId = sliceId;
+  stopPlayback();
   stopFrameHolds();
   renderProject();
   state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
@@ -347,6 +455,7 @@ function toggleSliceDeleted(sliceId) {
 
   slice.deleted = !slice.deleted;
   state.selectedSliceId = sliceId;
+  stopPlayback();
   stopFrameHolds();
   renderProject();
   state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
@@ -357,8 +466,15 @@ els.loadBtn.addEventListener("click", () => {
   loadSelectedSource().catch((error) => setStatus(error.message));
 });
 
-els.frameSlider.addEventListener("input", () => updateFrameFromSlider(80));
-els.frameSlider.addEventListener("change", () => updateFrameFromSlider(0));
+els.frameSlider.addEventListener("input", () => {
+  stopPlayback();
+  updateFrameFromSlider(80);
+});
+els.frameSlider.addEventListener("change", () => {
+  stopPlayback();
+  updateFrameFromSlider(0);
+});
+els.playBtn.addEventListener("click", togglePlayback);
 
 els.splitBtn.addEventListener("click", () => {
   splitLocal(currentFrame());
@@ -407,21 +523,29 @@ els.dupeBtn.addEventListener("click", async () => {
 els.exportBtn.addEventListener("click", async () => {
   if (!state.project) return;
 
-  setStatus("Exporting lossless/native GIF...");
-  els.exportBtn.disabled = true;
+  stopPlayback();
+  state.exporting = true;
+  setStatus("Starting lossless/native export...");
+  renderProject();
   els.outputLink.hidden = true;
+  setExportProgress({ phase: "Queued", progress: 0 });
 
   try {
-    const result = await api("/api/export", {
+    const { job } = await api("/api/export/start", {
       method: "POST",
       body: JSON.stringify({ project: state.project })
     });
+    setExportProgress(job);
+    const result = await waitForExportJob(job.id);
     els.outputLink.href = result.href;
     els.outputLink.hidden = false;
     setStatus(`Exported ${result.frameCount} frames with ${result.mode}.`);
   } catch (error) {
+    els.exportProgress.hidden = false;
+    els.exportPhase.textContent = `Failed: ${error.message}`;
     setStatus(error.message);
   } finally {
+    state.exporting = false;
     renderProject();
   }
 });

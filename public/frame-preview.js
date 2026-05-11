@@ -43,6 +43,19 @@
     return clampFrameToRange(currentFrame + delta, range);
   }
 
+  function nextPlaybackFrame(currentFrame, range) {
+    const current = clampFrameToRange(currentFrame, range);
+    if (!range || current >= range.end) return range?.start || 0;
+    return current + 1;
+  }
+
+  function playbackDelayMs(delaysCs, frameIndex, speed = 1) {
+    const delayCs = Array.isArray(delaysCs) ? Number(delaysCs[frameIndex]) : 0;
+    const safeDelayCs = Number.isFinite(delayCs) && delayCs > 0 ? delayCs : 1;
+    const safeSpeed = Number.isFinite(speed) && speed > 0 ? speed : 1;
+    return Math.max(10, Math.round((safeDelayCs * 10) / safeSpeed));
+  }
+
   function holdRepeatIntervalMs(repeatIndex, options = {}) {
     const startIntervalMs = options.startIntervalMs ?? 180;
     const minIntervalMs = options.minIntervalMs ?? 50;
@@ -197,6 +210,8 @@
     frameRangeForSlice,
     frameUrl,
     holdRepeatIntervalMs,
+    nextPlaybackFrame,
+    playbackDelayMs,
     stepFrame,
     stepFrameWithinRange
   };

@@ -73,6 +73,24 @@ a:hover {
   background: #13181e;
 }
 
+.exportProgress {
+  display: grid;
+  gap: 4px;
+  min-width: min(260px, 32vw);
+  align-self: center;
+}
+
+.exportProgress progress {
+  width: 100%;
+  height: 12px;
+  accent-color: #7cc8ff;
+}
+
+.exportProgress span {
+  color: #aab5c0;
+  font-size: 12px;
+}
+
 .sourceGroup {
   display: grid;
   gap: 4px;
@@ -158,7 +176,7 @@ a:hover {
 
 .frameControlRow {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 58px;
+  grid-template-columns: 58px 58px minmax(0, 1fr) 58px;
   align-items: center;
   gap: 8px;
 }

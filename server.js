@@ -3,6 +3,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { analyzeAdjacentDuplicates } = require("./src/duplicates");
+const { createExportJobStore } = require("./src/export-jobs");
 const { exportLossless } = require("./src/exporter");
 const { loadGifInfo } = require("./src/gif-info");
 const { sendError, sendJson, readJson, sendStatic } = require("./src/http-utils");
@@ -12,6 +13,7 @@ const { rootDir, ensureRuntimeDirs, assertInsideRoot } = require("./src/paths");
 const { checkRequiredTools } = require("./src/tools");
 
 const projects = new Map();
+const exportJobs = createExportJobStore({ exportLossless });
 const MIN_PREVIEW_SIZE = 120;
 const MAX_PREVIEW_SIZE = 1200;
 
@@ -95,6 +97,22 @@ async function handleApi(req, res) {
     const project = projectFromRequest(body.project);
     const exported = await exportLossless(project);
     sendJson(res, 200, exported);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/export/start") {
+    const body = await readJson(req);
+    const project = projectFromRequest(body.project);
+    const job = exportJobs.start(project);
+    sendJson(res, 202, { job });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/api/export/status/")) {
+    const [, , , , jobId] = url.pathname.split("/");
+    const job = exportJobs.get(jobId);
+    if (!job) throw new Error(`Unknown export job: ${jobId}`);
+    sendJson(res, 200, { job });
     return;
   }
 

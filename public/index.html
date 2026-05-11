@@ -16,6 +16,10 @@
         <button id="loadBtn" type="button">Load</button>
         <button id="exportBtn" type="button" disabled>Export</button>
         <a id="outputLink" hidden>Open export</a>
+        <div id="exportProgress" class="exportProgress" hidden>
+          <progress id="exportBar" value="0" max="100"></progress>
+          <span id="exportPhase">Idle</span>
+        </div>
       </header>
 
       <section class="workspace">
@@ -30,6 +34,7 @@
           <section class="controlBlock">
             <label for="frameSlider">Frame <span id="frameLabel">0</span></label>
             <div class="frameControlRow">
+              <button id="playBtn" type="button" disabled>Play</button>
               <button id="prevFrameBtn" type="button" disabled>Prev</button>
               <input id="frameSlider" type="range" min="0" max="0" value="0" disabled>
               <button id="nextFrameBtn" type="button" disabled>Next</button>

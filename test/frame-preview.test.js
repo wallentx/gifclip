@@ -6,6 +6,8 @@ const {
   createHoldRepeatController,
   clampFrameToRange,
   frameRangeForSlice,
+  nextPlaybackFrame,
+  playbackDelayMs,
   holdRepeatIntervalMs,
   stepFrame,
   stepFrameWithinRange
@@ -114,4 +116,14 @@ test("hold repeat controller steps immediately, then accelerates until stopped",
   assert.deepEqual(steps, [0, 1, 2]);
   assert.deepEqual(timers.map((timer) => timer.delayMs), [350, 180, 162]);
   assert.deepEqual(cleared, [3]);
+});
+
+test("playback helpers loop inside the selected range and respect slice speed", () => {
+  const range = { start: 12, end: 14 };
+
+  assert.equal(nextPlaybackFrame(12, range), 13);
+  assert.equal(nextPlaybackFrame(14, range), 12);
+  assert.equal(nextPlaybackFrame(40, range), 12);
+  assert.equal(playbackDelayMs([10, 20, 30], 1, 2), 100);
+  assert.equal(playbackDelayMs([0], 0, 1), 10);
 });

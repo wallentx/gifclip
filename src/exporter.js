@@ -98,8 +98,18 @@ function outputName(prefix) {
   return `${safePrefix || "gifclip"}-${Date.now()}-${randomUUID()}.gif`;
 }
 
-async function exportLossless(project) {
+function reportProgress(onProgress, phase, progress) {
+  if (typeof onProgress === "function") {
+    onProgress({ phase, progress });
+  }
+}
+
+async function exportLossless(project, options = {}) {
+  const run = options.runTool || runTool;
+  const onProgress = options.onProgress;
+
   const mode = exportModeForProject(project);
+  reportProgress(onProgress, "Building export plan", 10);
   const plan = buildFramePlan(project);
   ensureDir(tmpDir);
   ensureDir(exportsDir);
@@ -108,14 +118,17 @@ async function exportLossless(project) {
   const outputPath = path.join(exportsDir, outputName(project.source && project.source.basename));
 
   try {
-    await runTool("gifsicle", [
+    reportProgress(onProgress, "Selecting frames", 35);
+    await run("gifsicle", [
       plan.sourcePath,
       ...frameSelectionArgs(plan.frames),
       "--output",
       tempPath
     ]);
-    await runTool("gifsicle", ["--batch", tempPath, ...delayBatchArgs(plan.frames)]);
-    await runTool("gifsicle", ["--optimize=2", tempPath, "--output", outputPath]);
+    reportProgress(onProgress, "Applying frame delays", 65);
+    await run("gifsicle", ["--batch", tempPath, ...delayBatchArgs(plan.frames)]);
+    reportProgress(onProgress, "Optimizing output", 90);
+    await run("gifsicle", ["--optimize=2", tempPath, "--output", outputPath]);
   } finally {
     fs.rmSync(tempPath, { force: true });
   }

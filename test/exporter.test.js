@@ -4,7 +4,8 @@ const {
   frameSelectionArgs,
   delayGroups,
   delayBatchArgs,
-  exportModeForProject
+  exportModeForProject,
+  exportLossless
 } = require("../src/exporter");
 const { normalizeProject } = require("../src/project");
 
@@ -92,4 +93,26 @@ test("exportModeForProject rejects unsupported edits after normalization", () =>
   const normalized = normalizeProject(projectWithSlice({ overlays: [{ text: "hello" }] }));
 
   assert.throws(() => exportModeForProject(normalized), /overlays/);
+});
+
+test("exportLossless reports phase progress during native export", async () => {
+  const events = [];
+  const commands = [];
+
+  const exported = await exportLossless(projectWithSlice(), {
+    onProgress: (event) => events.push(event),
+    runTool: async (tool, args) => {
+      commands.push({ tool, args });
+    }
+  });
+
+  assert.deepEqual(events.map((event) => [event.phase, event.progress]), [
+    ["Building export plan", 10],
+    ["Selecting frames", 35],
+    ["Applying frame delays", 65],
+    ["Optimizing output", 90]
+  ]);
+  assert.equal(commands.length, 3);
+  assert.equal(exported.mode, "lossless-native");
+  assert.equal(exported.frameCount, 6);
 });
