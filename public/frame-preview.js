@@ -20,6 +20,29 @@
     return clampFrame(currentFrame + delta, frameCount);
   }
 
+  function frameRangeForSlice(slice, frameCount) {
+    const count = Number.isFinite(frameCount) && frameCount > 0 ? Math.trunc(frameCount) : 1;
+    const fullEnd = count - 1;
+    if (!slice || !Number.isFinite(slice.start) || !Number.isFinite(slice.end)) {
+      return { start: 0, end: fullEnd };
+    }
+
+    const start = Math.min(Math.max(Math.trunc(slice.start), 0), fullEnd);
+    const end = Math.min(Math.max(Math.trunc(slice.end), start), fullEnd);
+    return { start, end };
+  }
+
+  function clampFrameToRange(frameIndex, range) {
+    if (!range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return Math.trunc(frameIndex) || 0;
+    const start = Math.trunc(range.start);
+    const end = Math.max(start, Math.trunc(range.end));
+    return Math.min(Math.max(Math.trunc(frameIndex) || 0, start), end);
+  }
+
+  function stepFrameWithinRange(currentFrame, delta, range) {
+    return clampFrameToRange(currentFrame + delta, range);
+  }
+
   function holdRepeatIntervalMs(repeatIndex, options = {}) {
     const startIntervalMs = options.startIntervalMs ?? 180;
     const minIntervalMs = options.minIntervalMs ?? 50;
@@ -167,11 +190,14 @@
   }
 
   return {
+    clampFrameToRange,
     clampFrame,
     createFramePreviewController,
     createHoldRepeatController,
+    frameRangeForSlice,
     frameUrl,
     holdRepeatIntervalMs,
-    stepFrame
+    stepFrame,
+    stepFrameWithinRange
   };
 });

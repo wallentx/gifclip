@@ -4,8 +4,11 @@ const test = require("node:test");
 const {
   createFramePreviewController,
   createHoldRepeatController,
+  clampFrameToRange,
+  frameRangeForSlice,
   holdRepeatIntervalMs,
-  stepFrame
+  stepFrame,
+  stepFrameWithinRange
 } = require("../public/frame-preview.js");
 
 test("scheduled frame preview coalesces rapid slider input", async () => {
@@ -65,6 +68,22 @@ test("stepFrame moves one frame and clamps to timeline bounds", () => {
   assert.equal(stepFrame(6, 1, 10), 7);
   assert.equal(stepFrame(0, -1, 10), 0);
   assert.equal(stepFrame(9, 1, 10), 9);
+});
+
+test("frameRangeForSlice returns selected slice global frame bounds", () => {
+  assert.deepEqual(frameRangeForSlice({ start: 12, end: 25 }, 100), { start: 12, end: 25 });
+  assert.deepEqual(frameRangeForSlice(null, 100), { start: 0, end: 99 });
+  assert.deepEqual(frameRangeForSlice({ start: -8, end: 150 }, 100), { start: 0, end: 99 });
+});
+
+test("stepFrameWithinRange clamps movement to the selected slice", () => {
+  const range = { start: 12, end: 25 };
+
+  assert.equal(clampFrameToRange(5, range), 12);
+  assert.equal(clampFrameToRange(30, range), 25);
+  assert.equal(stepFrameWithinRange(12, -1, range), 12);
+  assert.equal(stepFrameWithinRange(25, 1, range), 25);
+  assert.equal(stepFrameWithinRange(18, 1, range), 19);
 });
 
 test("holdRepeatIntervalMs accelerates to a capped interval", () => {

@@ -65,6 +65,11 @@ function selectedSlice() {
   return state.project.slices.find((slice) => slice.id === state.selectedSliceId) || state.project.slices[0] || null;
 }
 
+function selectedFrameRange() {
+  if (!state.project) return { start: 0, end: 0 };
+  return window.GifclipFramePreview.frameRangeForSlice(selectedSlice(), state.project.source.frameCount);
+}
+
 function nextSliceId(slices) {
   let max = 0;
   for (const slice of slices) {
@@ -93,6 +98,7 @@ function renderProject() {
   setControlsEnabled(Boolean(project));
 
   if (!project) {
+    els.frameSlider.min = "0";
     els.frameSlider.max = "0";
     els.frameSlider.value = "0";
     els.frameLabel.textContent = "0";
@@ -102,16 +108,18 @@ function renderProject() {
     return;
   }
 
-  const frame = Math.min(currentFrame(), project.source.frameCount - 1);
+  const active = selectedSlice();
+  const range = selectedFrameRange();
+  const frame = window.GifclipFramePreview.clampFrameToRange(currentFrame(), range);
   project.currentFrame = frame;
-  els.frameSlider.max = String(project.source.frameCount - 1);
+  els.frameSlider.min = String(range.start);
+  els.frameSlider.max = String(range.end);
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
   els.delayLabel.textContent = `Delay: ${project.source.delaysCs[frame] || 0} cs`;
-  els.prevFrameBtn.disabled = frame <= 0;
-  els.nextFrameBtn.disabled = frame >= project.source.frameCount - 1;
+  els.prevFrameBtn.disabled = frame <= range.start;
+  els.nextFrameBtn.disabled = frame >= range.end;
 
-  const active = selectedSlice();
   els.speedInput.value = active ? String(active.speed) : "1";
   els.dupeBtn.disabled = !active;
   els.speedInput.disabled = !active;
@@ -207,13 +215,13 @@ function updateFrameFromSlider(delayMs) {
 function canMoveFrame(delta) {
   if (!state.project) return false;
   const frame = currentFrame();
-  return window.GifclipFramePreview.stepFrame(frame, delta, state.project.source.frameCount) !== frame;
+  return window.GifclipFramePreview.stepFrameWithinRange(frame, delta, selectedFrameRange()) !== frame;
 }
 
 function moveFrame(delta) {
   if (!state.project) return;
   const current = currentFrame();
-  const frame = window.GifclipFramePreview.stepFrame(current, delta, state.project.source.frameCount);
+  const frame = window.GifclipFramePreview.stepFrameWithinRange(current, delta, selectedFrameRange());
   if (frame === current) return;
 
   els.frameSlider.value = String(frame);
@@ -306,6 +314,7 @@ function splitLocal(frame) {
   state.project = project;
   state.selectedSliceId = right.id;
   renderProject();
+  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
   setStatus(`Split at frame ${frame + 1}.`);
 }
 
@@ -327,7 +336,9 @@ function updateSelectedSpeed() {
 
 function selectSlice(sliceId) {
   state.selectedSliceId = sliceId;
+  stopFrameHolds();
   renderProject();
+  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
 }
 
 function toggleSliceDeleted(sliceId) {
@@ -336,7 +347,9 @@ function toggleSliceDeleted(sliceId) {
 
   slice.deleted = !slice.deleted;
   state.selectedSliceId = sliceId;
+  stopFrameHolds();
   renderProject();
+  state.framePreview.show(currentFrame()).catch(ignorePreviewAbort);
   setStatus(`${slice.id} ${slice.deleted ? "deleted" : "restored"}.`);
 }
 
