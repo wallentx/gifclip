@@ -278,6 +278,8 @@ function bindFrameHoldButton(button, delta) {
   });
   button.addEventListener("blur", () => controller.stop());
   button.addEventListener("contextmenu", (event) => event.preventDefault());
+  button.addEventListener("dragstart", (event) => event.preventDefault());
+  button.addEventListener("selectstart", (event) => event.preventDefault());
 
   return controller;
 }

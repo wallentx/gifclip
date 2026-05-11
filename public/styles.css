@@ -167,6 +167,8 @@ a:hover {
   min-width: 0;
   padding-inline: 0;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
