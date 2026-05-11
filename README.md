@@ -27,6 +27,14 @@ npm run verify
 
 `npm run verify` expects `jobscout-demo.gif` in the repo root. It checks metadata, generates one preview frame, and exports a small lossless/native slice.
 
+## Benchmark Preview Extraction
+
+```bash
+npm run benchmark:preview -- --start=10 --count=6 --max=900
+```
+
+The benchmark compares the current one-FFmpeg-process-per-frame preview path with a batch proxy-frame extraction path. Outputs and `summary.json` are written under `.gifclip/tmp/benchmarks/`.
+
 ## V1 Scope
 
 Supported:
