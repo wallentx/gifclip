@@ -30,15 +30,45 @@ function checkRequiredTools() {
 
 function runTool(command, args, options = {}) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const child = spawn(command, args, {
       cwd: options.cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     const stdout = [];
     const stderr = [];
+
+    function finish(error, value) {
+      if (settled) return;
+      settled = true;
+      if (options.signal) {
+        options.signal.removeEventListener("abort", abort);
+      }
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(value);
+    }
+
+    function abort() {
+      const error = new Error(`${command} aborted`);
+      error.name = "AbortError";
+      child.kill("SIGTERM");
+      finish(error);
+    }
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        abort();
+        return;
+      }
+      options.signal.addEventListener("abort", abort, { once: true });
+    }
+
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error) => finish(error));
     child.on("close", (code) => {
       const out = Buffer.concat(stdout);
       const err = Buffer.concat(stderr);
@@ -48,10 +78,10 @@ function runTool(command, args, options = {}) {
         error.code = code;
         error.stdout = out;
         error.stderr = err;
-        reject(error);
+        finish(error);
         return;
       }
-      resolve({ stdout: out, stderr: err });
+      finish(null, { stdout: out, stderr: err });
     });
   });
 }

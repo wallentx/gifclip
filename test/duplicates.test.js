@@ -26,9 +26,15 @@ test("adjacentDuplicateIndexes keeps first frame in each duplicate run", () => {
 });
 
 test("ffmpegFrameMd5Args selects inclusive frame range as framemd5 stdout", () => {
-  assert.deepEqual(ffmpegFrameMd5Args("input.gif", 3, 8), [
+  assert.deepEqual(ffmpegFrameMd5Args("input.gif", 3, 8, { threads: 8, hwaccel: "auto" }), [
     "-v",
     "error",
+    "-threads",
+    "8",
+    "-filter_threads",
+    "8",
+    "-hwaccel",
+    "auto",
     "-i",
     "input.gif",
     "-vf",

@@ -4,12 +4,16 @@ const test = require("node:test");
 const {
   createFramePreviewController,
   createHoldRepeatController,
+  boundedPreviewRange,
   clampFrameToRange,
   frameRangeForSlice,
+  mergeFrameRanges,
   nextPlaybackFrame,
+  nextPreviewWindowSize,
   playbackDelayMs,
   holdRepeatIntervalMs,
   stepFrame,
+  subtractFrameRanges,
   stepFrameWithinRange
 } = require("../public/frame-preview.js");
 
@@ -63,6 +67,72 @@ test("direct frame preview fetches only the requested frame", async () => {
   await controller.show(7);
 
   assert.deepEqual(fetched, ["/api/frame/project-1/7?max=900"]);
+});
+
+test("direct frame preview reports loaded status after fetch completes", async () => {
+  const statuses = [];
+  const loaded = [];
+  const controller = createFramePreviewController({
+    getProjectId: () => "project-1",
+    getFrameCount: () => 20,
+    previewElement: { src: "" },
+    createObjectUrl: () => "blob:url",
+    setStatus: (message) => statuses.push(message),
+    onLoaded: (frameIndex, url) => loaded.push({ frameIndex, url }),
+    fetchFrame: async () => ({ ok: true, blob: async () => ({}) })
+  });
+
+  await controller.show(7);
+
+  assert.deepEqual(statuses, ["Loading frame 8...", "Loaded frame 8."]);
+  assert.deepEqual(loaded, [{ frameIndex: 7, url: "blob:url" }]);
+});
+
+test("boundedPreviewRange tracks a wide centered direct preview batch", () => {
+  assert.deepEqual(boundedPreviewRange(0, 199, 200, 121, 100), {
+    start: 40,
+    end: 160,
+    count: 121
+  });
+  assert.deepEqual(boundedPreviewRange(0, 199, 200, 121, 3), {
+    start: 0,
+    end: 63,
+    count: 64
+  });
+});
+
+test("mergeFrameRanges combines overlapping and adjacent frame ranges", () => {
+  assert.deepEqual(mergeFrameRanges([
+    { start: 20, end: 25 },
+    { start: 10, end: 12 },
+    { start: 13, end: 14 },
+    { start: 24, end: 30 }
+  ]), [
+    { start: 10, end: 14, count: 5 },
+    { start: 20, end: 30, count: 11 }
+  ]);
+});
+
+test("subtractFrameRanges returns only uncached spans", () => {
+  assert.deepEqual(subtractFrameRanges(
+    [{ start: 465, end: 585 }],
+    [{ start: 464, end: 584 }]
+  ), [
+    { start: 585, end: 585, count: 1 }
+  ]);
+  assert.deepEqual(subtractFrameRanges(
+    [{ start: 100, end: 110 }],
+    [{ start: 102, end: 104 }, { start: 108, end: 112 }]
+  ), [
+    { start: 100, end: 101, count: 2 },
+    { start: 105, end: 107, count: 3 }
+  ]);
+});
+
+test("nextPreviewWindowSize doubles an odd preview window up to a cap", () => {
+  assert.equal(nextPreviewWindowSize(121, 241), 241);
+  assert.equal(nextPreviewWindowSize(49, 241), 97);
+  assert.equal(nextPreviewWindowSize(241, 241), 241);
 });
 
 test("stepFrame moves one frame and clamps to timeline bounds", () => {

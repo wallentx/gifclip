@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { performance } = require("node:perf_hooks");
+const { ffmpegInputArgs } = require("./ffmpeg-options");
 const { tmpDir } = require("./paths");
 const { runTool } = require("./tools");
 
@@ -16,10 +17,11 @@ function benchmarkFrameRange(start, count, frameCount) {
   return { start: safeStart, end, count: end - safeStart + 1 };
 }
 
-function singlePreviewArgs(sourcePath, frameIndex, maxSize, outputPath) {
+function singlePreviewArgs(sourcePath, frameIndex, maxSize, outputPath, options = {}) {
   return [
     "-v",
     "error",
+    ...ffmpegInputArgs(options),
     "-i",
     sourcePath,
     "-vf",
@@ -33,11 +35,12 @@ function singlePreviewArgs(sourcePath, frameIndex, maxSize, outputPath) {
   ];
 }
 
-function batchPreviewArgs(sourcePath, start, end, maxSize, outputPattern) {
+function batchPreviewArgs(sourcePath, start, end, maxSize, outputPattern, options = {}) {
   const count = Math.max(1, end - start + 1);
   return [
     "-v",
     "error",
+    ...ffmpegInputArgs(options),
     "-i",
     sourcePath,
     "-vf",

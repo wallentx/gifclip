@@ -1,10 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const {
   frameSelectionArgs,
   delayGroups,
   delayBatchArgs,
   exportModeForProject,
+  firstFrameIsFullCanvas,
   exportLossless
 } = require("../src/exporter");
 const { normalizeProject } = require("../src/project");
@@ -95,6 +97,17 @@ test("exportModeForProject rejects unsupported edits after normalization", () =>
   assert.throws(() => exportModeForProject(normalized), /overlays/);
 });
 
+test("firstFrameIsFullCanvas detects optimized partial first frames", () => {
+  assert.equal(
+    firstFrameIsFullCanvas("+ image #0 3164x4704\n    delay 2.62s", 3164, 4704),
+    true
+  );
+  assert.equal(
+    firstFrameIsFullCanvas("+ image #0 3038x4322 at 41,162 transparent 114", 3164, 4704),
+    false
+  );
+});
+
 test("exportLossless reports phase progress during native export", async () => {
   const events = [];
   const commands = [];
@@ -103,6 +116,10 @@ test("exportLossless reports phase progress during native export", async () => {
     onProgress: (event) => events.push(event),
     runTool: async (tool, args) => {
       commands.push({ tool, args });
+      if (tool === "gifsicle" && args[0] === "--info") {
+        return { stdout: Buffer.from("+ image #0 100x80\n") };
+      }
+      return { stdout: Buffer.from("") };
     }
   });
 
@@ -110,9 +127,32 @@ test("exportLossless reports phase progress during native export", async () => {
     ["Building export plan", 10],
     ["Selecting frames", 35],
     ["Applying frame delays", 65],
+    ["Checking first frame", 78],
     ["Optimizing output", 90]
   ]);
-  assert.equal(commands.length, 3);
+  assert.equal(commands.length, 4);
   assert.equal(exported.mode, "lossless-native");
   assert.equal(exported.frameCount, 6);
+  assert.equal(exported.firstFrameRepaired, false);
+});
+
+test("exportLossless repairs a partial first frame before optimizing", async () => {
+  const commands = [];
+  const exported = await exportLossless(projectWithSlice({ start: 2, end: 4 }), {
+    runTool: async (tool, args) => {
+      commands.push({ tool, args });
+      if (tool === "gifsicle" && args[0] === "--info") {
+        return { stdout: Buffer.from("+ image #0 90x70 at 5,5 transparent 1\n") };
+      }
+      const outputIndex = args.indexOf("--output");
+      if (outputIndex !== -1) {
+        fs.writeFileSync(args[outputIndex + 1], "");
+      }
+      return { stdout: Buffer.from("") };
+    }
+  });
+
+  assert.equal(exported.firstFrameRepaired, true);
+  assert.equal(commands.some((command) => command.tool === "ffmpeg"), true);
+  assert.deepEqual(commands.at(-1).args.slice(0, 1), ["--optimize=2"]);
 });

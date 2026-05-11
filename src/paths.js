@@ -7,6 +7,7 @@ const projectsDir = path.join(runtimeDir, "projects");
 const cacheDir = path.join(runtimeDir, "cache");
 const previewCacheDir = path.join(cacheDir, "previews");
 const tmpDir = path.join(runtimeDir, "tmp");
+const sourcesDir = path.join(runtimeDir, "sources");
 const exportsDir = path.join(rootDir, "exports");
 const publicDir = path.join(rootDir, "public");
 
@@ -15,7 +16,7 @@ function ensureDir(dir) {
 }
 
 function ensureRuntimeDirs() {
-  for (const dir of [projectsDir, previewCacheDir, tmpDir, exportsDir]) {
+  for (const dir of [projectsDir, previewCacheDir, tmpDir, sourcesDir, exportsDir]) {
     ensureDir(dir);
   }
 }
@@ -35,6 +36,7 @@ module.exports = {
   projectsDir,
   previewCacheDir,
   tmpDir,
+  sourcesDir,
   exportsDir,
   publicDir,
   ensureDir,

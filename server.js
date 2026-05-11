@@ -1,33 +1,25 @@
 const fs = require("node:fs");
 const http = require("node:http");
-const path = require("node:path");
 const { URL } = require("node:url");
-const { analyzeAdjacentDuplicates } = require("./src/duplicates");
+const { createDuplicateJobStore } = require("./src/duplicate-jobs");
 const { createExportJobStore } = require("./src/export-jobs");
 const { exportLossless } = require("./src/exporter");
 const { loadGifInfo } = require("./src/gif-info");
-const { sendError, sendJson, readJson, sendStatic } = require("./src/http-utils");
-const { createProject, markDuplicateFrames, normalizeProject } = require("./src/project");
-const { ensurePreview, ensurePreviewRange } = require("./src/preview");
-const { rootDir, ensureRuntimeDirs, assertInsideRoot } = require("./src/paths");
+const { sendError, sendJson, readBody, readJson, sendStatic } = require("./src/http-utils");
+const { blueprintFromProject, projectFromBlueprint, sourceMatchesBlueprint } = require("./src/blueprints");
+const { createProject, normalizeProject } = require("./src/project");
+const { cachedPreviewRanges, ensurePreview, ensurePreviewRange } = require("./src/preview");
+const { ensureRuntimeDirs } = require("./src/paths");
+const { listSources, resolveSource, saveUploadedSource } = require("./src/sources");
 const { checkRequiredTools } = require("./src/tools");
 
 const projects = new Map();
+const duplicateJobs = createDuplicateJobStore();
 const exportJobs = createExportJobStore({ exportLossless });
 const MIN_PREVIEW_SIZE = 120;
 const MAX_PREVIEW_SIZE = 1200;
-const DEFAULT_PREVIEW_WINDOW_FRAMES = 41;
-const MAX_PREVIEW_WINDOW_FRAMES = 121;
-
-function listSources() {
-  return fs.readdirSync(rootDir)
-    .filter((name) => name.toLowerCase().endsWith(".gif"))
-    .map((name) => {
-      const filePath = path.join(rootDir, name);
-      const stat = fs.statSync(filePath);
-      return { name, bytes: stat.size };
-    });
-}
+const DEFAULT_PREVIEW_WINDOW_FRAMES = 121;
+const MAX_PREVIEW_WINDOW_FRAMES = 241;
 
 function projectFromRequest(clientProject) {
   if (!clientProject || typeof clientProject.id !== "string") {
@@ -60,6 +52,46 @@ function previewWindowFrames(value) {
   return Math.max(1, Math.min(MAX_PREVIEW_WINDOW_FRAMES, Math.trunc(size)));
 }
 
+async function loadProjectFromSourceId(sourceId) {
+  const source = await loadGifInfo(resolveSource(sourceId));
+  const project = createProject(source);
+  projects.set(project.id, project);
+  return project;
+}
+
+async function findProjectForBlueprint(blueprint) {
+  for (const sourceEntry of listSources()) {
+    const source = await loadGifInfo(resolveSource(sourceEntry.id));
+    if (sourceMatchesBlueprint(source, blueprint.source)) {
+      const project = projectFromBlueprint(source, blueprint);
+      projects.set(project.id, project);
+      return project;
+    }
+  }
+  throw new Error("No loaded source matches this blueprint");
+}
+
+function responseAbortSignal(res) {
+  const controller = new AbortController();
+  res.on("close", () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
+  });
+  return controller.signal;
+}
+
+async function resolveFramePreviewPath(project, frameIndex, maxSize, options = {}) {
+  if (!Number.isInteger(frameIndex) || frameIndex < 0 || frameIndex >= project.source.frameCount) {
+    throw new Error(`Preview frame is outside source range: ${frameIndex}`);
+  }
+  const preview = options.ensurePreview || ensurePreview;
+  return preview(project.source, frameIndex, maxSize, {
+    priority: "high",
+    signal: options.signal
+  });
+}
+
 async function handleApi(req, res) {
   const url = new URL(req.url, "http://localhost");
 
@@ -70,11 +102,23 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/load") {
     const body = await readJson(req);
-    const sourcePath = assertInsideRoot(path.join(rootDir, body.name || ""));
-    const source = await loadGifInfo(sourcePath);
-    const project = createProject(source);
-    projects.set(project.id, project);
+    const project = await loadProjectFromSourceId(body.sourceId || body.name);
     sendJson(res, 200, { project });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/upload") {
+    const buffer = await readBody(req, { maxBytes: 512 * 1024 * 1024 });
+    const uploadPath = await saveUploadedSource(url.searchParams.get("name"), buffer);
+    try {
+      const source = await loadGifInfo(uploadPath);
+      const project = createProject(source);
+      projects.set(project.id, project);
+      sendJson(res, 201, { project, source });
+    } catch (error) {
+      fs.rmSync(uploadPath, { force: true });
+      throw error;
+    }
     return;
   }
 
@@ -84,7 +128,9 @@ async function handleApi(req, res) {
     if (!project) throw new Error(`Unknown project: ${projectId}`);
     const frameIndex = Number(frameText);
     const maxSize = previewSize(url.searchParams.get("max"));
-    const previewPath = await ensurePreview(project.source, frameIndex, maxSize);
+    const previewPath = await resolveFramePreviewPath(project, frameIndex, maxSize, {
+      signal: responseAbortSignal(res)
+    });
     res.writeHead(200, { "content-type": "image/jpeg" });
     fs.createReadStream(previewPath).pipe(res);
     return;
@@ -96,26 +142,44 @@ async function handleApi(req, res) {
     const maxSize = previewSize(body.max);
     const range = await ensurePreviewRange(project.source, Number(body.start), Number(body.end), maxSize, {
       center: Number(body.center),
-      maxFrames: previewWindowFrames(body.maxFrames)
+      maxFrames: previewWindowFrames(body.maxFrames),
+      signal: responseAbortSignal(res)
     });
     sendJson(res, 200, {
       start: range.start,
       end: range.end,
       count: range.count,
-      generated: range.generated
+      generated: range.generated,
+      generatedRanges: range.generatedRanges
     });
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/analyze-duplicates") {
+  if (req.method === "POST" && url.pathname === "/api/preview-cache/status") {
+    const body = await readJson(req);
+    const project = projectFromRequest(body.project);
+    const maxSize = previewSize(body.max);
+    sendJson(res, 200, cachedPreviewRanges(project.source, Number(body.start), Number(body.end), maxSize));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/analyze-duplicates/start") {
     const body = await readJson(req);
     const project = normalizeProject(projectFromRequest(body.project));
     const slice = project.slices.find((item) => item.id === body.sliceId);
     if (!slice) throw new Error(`Unknown slice: ${body.sliceId}`);
-    const analysis = await analyzeAdjacentDuplicates(project.source, slice.start, slice.end);
-    const updated = markDuplicateFrames(project, slice.id, analysis.duplicateFrames);
-    projects.set(updated.id, updated);
-    sendJson(res, 200, { project: updated, analysis });
+    const job = duplicateJobs.start(project, slice, (updated) => {
+      projects.set(updated.id, updated);
+    });
+    sendJson(res, 202, { job });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/api/analyze-duplicates/status/")) {
+    const [, , , , jobId] = url.pathname.split("/");
+    const job = duplicateJobs.get(jobId);
+    if (!job) throw new Error(`Unknown duplicate-analysis job: ${jobId}`);
+    sendJson(res, 200, { job });
     return;
   }
 
@@ -132,6 +196,28 @@ async function handleApi(req, res) {
     const project = projectFromRequest(body.project);
     const job = exportJobs.start(project);
     sendJson(res, 202, { job });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/blueprint/export") {
+    const body = await readJson(req);
+    const project = normalizeProject(projectFromRequest(body.project));
+    sendJson(res, 200, { blueprint: blueprintFromProject(project) });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/blueprint/load") {
+    const body = await readJson(req);
+    const blueprint = body.blueprint;
+    let project;
+    if (body.sourceId || body.name) {
+      const source = await loadGifInfo(resolveSource(body.sourceId || body.name));
+      project = projectFromBlueprint(source, blueprint);
+      projects.set(project.id, project);
+    } else {
+      project = await findProjectForBlueprint(blueprint);
+    }
+    sendJson(res, 200, { project });
     return;
   }
 
@@ -174,4 +260,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { listSources, handleApi, handle };
+module.exports = { listSources, resolveFramePreviewPath, handleApi, handle };

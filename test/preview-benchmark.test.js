@@ -15,9 +15,15 @@ test("benchmarkFrameRange clamps start/count to source bounds", () => {
 });
 
 test("singlePreviewArgs extracts one scaled proxy frame", () => {
-  assert.deepEqual(singlePreviewArgs("in.gif", 12, 900, "out.jpg"), [
+  assert.deepEqual(singlePreviewArgs("in.gif", 12, 900, "out.jpg", { threads: 8, hwaccel: "auto" }), [
     "-v",
     "error",
+    "-threads",
+    "8",
+    "-filter_threads",
+    "8",
+    "-hwaccel",
+    "auto",
     "-i",
     "in.gif",
     "-vf",
@@ -32,9 +38,15 @@ test("singlePreviewArgs extracts one scaled proxy frame", () => {
 });
 
 test("batchPreviewArgs extracts a contiguous scaled proxy frame window", () => {
-  assert.deepEqual(batchPreviewArgs("in.gif", 12, 16, 720, "frame-%06d.jpg"), [
+  assert.deepEqual(batchPreviewArgs("in.gif", 12, 16, 720, "frame-%06d.jpg", { threads: 8, hwaccel: "auto" }), [
     "-v",
     "error",
+    "-threads",
+    "8",
+    "-filter_threads",
+    "8",
+    "-hwaccel",
+    "auto",
     "-i",
     "in.gif",
     "-vf",

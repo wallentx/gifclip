@@ -17,13 +17,15 @@ body {
 
 button,
 select,
-input {
+input,
+.fileButton {
   font: inherit;
 }
 
 button,
 select,
-input[type="number"] {
+input[type="number"],
+.fileButton {
   min-height: 36px;
   border: 1px solid #343d47;
   border-radius: 6px;
@@ -36,9 +38,27 @@ button {
   cursor: pointer;
 }
 
+.fileButton {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#uploadInput,
+#blueprintInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 button:hover:not(:disabled),
 select:hover,
-input[type="number"]:hover:not(:disabled) {
+input[type="number"]:hover:not(:disabled),
+.fileButton:hover {
   border-color: #5e7184;
 }
 
@@ -174,9 +194,49 @@ a:hover {
   accent-color: #7cc8ff;
 }
 
+.timelineSlider {
+  position: relative;
+  min-width: 0;
+  height: 36px;
+  display: grid;
+  align-items: center;
+}
+
+.previewRenderBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 6px;
+  border-radius: 3px;
+  background: #29323b;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.previewRenderBarSegment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+}
+
+.previewRenderBarSegment.loading {
+  background: #d6b14a;
+}
+
+.previewRenderBarSegment.cached {
+  background: #57bd73;
+}
+
+.timelineSlider #frameSlider {
+  position: relative;
+  z-index: 1;
+}
+
 .frameControlRow {
   display: grid;
-  grid-template-columns: 58px 58px minmax(0, 1fr) 58px;
+  grid-template-columns: 58px 86px 58px minmax(0, 1fr) 58px;
   align-items: center;
   gap: 8px;
 }
@@ -205,6 +265,28 @@ a:hover {
 #speedInput {
   width: 128px;
   padding: 0 10px;
+}
+
+.speedRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
+  align-items: center;
+}
+
+#speedSlider {
+  width: 100%;
+  accent-color: #7cc8ff;
+}
+
+.presetRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.sideFileButton {
+  grid-column: 1 / -1;
 }
 
 .sliceList {

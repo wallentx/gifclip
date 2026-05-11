@@ -1,4 +1,5 @@
 const { runTool } = require("./tools");
+const { configuredDuplicateThreads, ffmpegInputArgs } = require("./ffmpeg-options");
 
 function validateFrameRange(start, end) {
   if (!Number.isInteger(start) || !Number.isInteger(end)) {
@@ -12,11 +13,12 @@ function validateFrameRange(start, end) {
   }
 }
 
-function ffmpegFrameMd5Args(sourcePath, start, end) {
+function ffmpegFrameMd5Args(sourcePath, start, end, options = {}) {
   validateFrameRange(start, end);
   return [
     "-v",
     "error",
+    ...ffmpegInputArgs(options),
     "-i",
     sourcePath,
     "-vf",
@@ -59,7 +61,9 @@ async function analyzeAdjacentDuplicates(source, start, end) {
   if (source.frameCount !== undefined && end >= source.frameCount) {
     throw new Error(`Invalid duplicate-analysis range: ${start}-${end}`);
   }
-  const args = ffmpegFrameMd5Args(sourcePath, start, end);
+  const args = ffmpegFrameMd5Args(sourcePath, start, end, {
+    threads: configuredDuplicateThreads()
+  });
   const result = await runTool("ffmpeg", args);
   const hashes = parseFrameMd5(result.stdout.toString("utf8"));
   return {

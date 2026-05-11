@@ -49,6 +49,78 @@
     return current + 1;
   }
 
+  function boundedPreviewRange(start, end, frameCount, maxFrames, center) {
+    const safeFrameCount = Math.max(1, Math.trunc(frameCount) || 1);
+    const safeMaxFrames = Math.max(1, Math.trunc(maxFrames) || 1);
+    const safeStart = Math.min(Math.max(Math.trunc(start) || 0, 0), safeFrameCount - 1);
+    const requestedEnd = Number.isFinite(end) ? Math.trunc(end) : safeStart;
+    const safeEnd = Math.min(Math.max(requestedEnd, safeStart), safeFrameCount - 1);
+
+    if (Number.isFinite(center)) {
+      const radius = Math.floor((safeMaxFrames - 1) / 2);
+      const marker = Math.min(Math.max(Math.trunc(center), safeStart), safeEnd);
+      const markerStart = Math.max(safeStart, marker - radius);
+      const markerEnd = Math.min(safeEnd, marker + radius);
+      return { start: markerStart, end: markerEnd, count: markerEnd - markerStart + 1 };
+    }
+
+    const boundedEnd = Math.min(safeEnd, safeStart + safeMaxFrames - 1);
+    return { start: safeStart, end: boundedEnd, count: boundedEnd - safeStart + 1 };
+  }
+
+  function mergeFrameRanges(ranges) {
+    if (!Array.isArray(ranges) || ranges.length === 0) return [];
+    const sorted = ranges
+      .filter((range) => Number.isFinite(range?.start) && Number.isFinite(range?.end))
+      .map((range) => ({
+        start: Math.trunc(range.start),
+        end: Math.trunc(range.end)
+      }))
+      .filter((range) => range.end >= range.start)
+      .sort((a, b) => a.start - b.start || a.end - b.end);
+
+    const merged = [];
+    for (const range of sorted) {
+      const last = merged[merged.length - 1];
+      if (!last || range.start > last.end + 1) {
+        merged.push({ ...range, count: range.end - range.start + 1 });
+        continue;
+      }
+      last.end = Math.max(last.end, range.end);
+      last.count = last.end - last.start + 1;
+    }
+    return merged;
+  }
+
+  function subtractFrameRanges(ranges, subtractRanges) {
+    const subtractors = mergeFrameRanges(subtractRanges);
+    const result = [];
+
+    for (const sourceRange of mergeFrameRanges(ranges)) {
+      let cursor = sourceRange.start;
+      for (const subtractor of subtractors) {
+        if (subtractor.end < cursor) continue;
+        if (subtractor.start > sourceRange.end) break;
+        if (subtractor.start > cursor) {
+          result.push({ start: cursor, end: Math.min(subtractor.start - 1, sourceRange.end) });
+        }
+        cursor = Math.max(cursor, subtractor.end + 1);
+        if (cursor > sourceRange.end) break;
+      }
+      if (cursor <= sourceRange.end) {
+        result.push({ start: cursor, end: sourceRange.end });
+      }
+    }
+
+    return mergeFrameRanges(result);
+  }
+
+  function nextPreviewWindowSize(currentSize, maxSize) {
+    const current = Math.max(1, Math.trunc(currentSize) || 1);
+    const max = Math.max(current, Math.trunc(maxSize) || current);
+    return Math.min(max, current * 2 - 1);
+  }
+
   function playbackDelayMs(delaysCs, frameIndex, speed = 1) {
     const delayCs = Array.isArray(delaysCs) ? Number(delaysCs[frameIndex]) : 0;
     const safeDelayCs = Number.isFinite(delayCs) && delayCs > 0 ? delayCs : 1;
@@ -136,6 +208,7 @@
     const clearTimer = options.clearTimer || clearTimeout;
     const setStatus = options.setStatus || (() => {});
     const onError = options.onError || (() => {});
+    const onLoaded = options.onLoaded || (() => {});
 
     let abortController = null;
     let previewUrl = null;
@@ -179,6 +252,8 @@
       }
       previewUrl = createObjectUrl(blob);
       previewElement.src = previewUrl;
+      setStatus(`Loaded frame ${frameIndex + 1}.`);
+      onLoaded(frameIndex, previewUrl);
       return previewUrl;
     }
 
@@ -203,6 +278,7 @@
   }
 
   return {
+    boundedPreviewRange,
     clampFrameToRange,
     clampFrame,
     createFramePreviewController,
@@ -210,8 +286,11 @@
     frameRangeForSlice,
     frameUrl,
     holdRepeatIntervalMs,
+    mergeFrameRanges,
     nextPlaybackFrame,
+    nextPreviewWindowSize,
     playbackDelayMs,
+    subtractFrameRanges,
     stepFrame,
     stepFrameWithinRange
   };
