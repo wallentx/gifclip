@@ -7,12 +7,15 @@ const {
   boundedPreviewRange,
   clampFrameToRange,
   frameRangeForSlice,
+  frameRangesForSlices,
   mergeFrameRanges,
   nextPlaybackFrame,
   nextPreviewWindowSize,
   playbackDelayMs,
+  sliceStepTarget,
   holdRepeatIntervalMs,
   stepFrame,
+  stepFrameAcrossRanges,
   subtractFrameRanges,
   stepFrameWithinRange
 } = require("../public/frame-preview.js");
@@ -156,6 +159,45 @@ test("stepFrameWithinRange clamps movement to the selected slice", () => {
   assert.equal(stepFrameWithinRange(12, -1, range), 12);
   assert.equal(stepFrameWithinRange(25, 1, range), 25);
   assert.equal(stepFrameWithinRange(18, 1, range), 19);
+});
+
+test("frameRangesForSlices omits deleted slices", () => {
+  const slices = [
+    { id: "a", start: 0, end: 3, deleted: false },
+    { id: "b", start: 4, end: 5, deleted: true },
+    { id: "c", start: 8, end: 10, deleted: false }
+  ];
+
+  assert.deepEqual(frameRangesForSlices(slices, 20), [
+    { start: 0, end: 3, count: 4 },
+    { start: 8, end: 10, count: 3 }
+  ]);
+});
+
+test("stepFrameAcrossRanges spans undeleted slices and stops at ends", () => {
+  const ranges = [
+    { start: 0, end: 3 },
+    { start: 8, end: 10 }
+  ];
+
+  assert.equal(stepFrameAcrossRanges(2, 1, ranges), 3);
+  assert.equal(stepFrameAcrossRanges(3, 1, ranges), 8);
+  assert.equal(stepFrameAcrossRanges(8, -1, ranges), 3);
+  assert.equal(stepFrameAcrossRanges(0, -1, ranges), 0);
+  assert.equal(stepFrameAcrossRanges(10, 1, ranges), 10);
+});
+
+test("sliceStepTarget returns previous and next undeleted slice starts", () => {
+  const slices = [
+    { id: "a", start: 0, end: 3, deleted: false },
+    { id: "b", start: 4, end: 5, deleted: true },
+    { id: "c", start: 8, end: 10, deleted: false }
+  ];
+
+  assert.deepEqual(sliceStepTarget(slices, "a", 1), { sliceId: "c", frame: 8 });
+  assert.deepEqual(sliceStepTarget(slices, "c", -1), { sliceId: "a", frame: 0 });
+  assert.equal(sliceStepTarget(slices, "a", -1), null);
+  assert.equal(sliceStepTarget(slices, "c", 1), null);
 });
 
 test("holdRepeatIntervalMs accelerates to a capped interval", () => {

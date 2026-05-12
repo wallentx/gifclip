@@ -9,12 +9,13 @@ const state = {
   previewPrewarmRequestId: 0,
   previewPrewarmController: null,
   playbackTimer: null,
-  playbackMode: "slice",
-  exportPlaybackPlan: [],
-  exportPlaybackIndex: 0,
+  playbackMode: "play",
+  playbackPlan: [],
+  playbackIndex: 0,
   playing: false,
   exporting: false,
   analyzingDuplicates: false,
+  speedEditingSliceId: null,
   statusMessage: "Choose a GIF to start.",
   frameStatus: "",
   batchStatus: "",
@@ -27,10 +28,16 @@ const PREVIEW_WINDOW_FRAMES = 121;
 const MAX_PREVIEW_WINDOW_FRAMES = 241;
 
 const els = {
-  sourceSelect: document.querySelector("#sourceSelect"),
-  loadBtn: document.querySelector("#loadBtn"),
   uploadInput: document.querySelector("#uploadInput"),
+  configBtn: document.querySelector("#configBtn"),
+  configDialog: document.querySelector("#configDialog"),
+  pasteBlueprintBtn: document.querySelector("#pasteBlueprintBtn"),
+  pasteBlueprintDialog: document.querySelector("#pasteBlueprintDialog"),
+  blueprintText: document.querySelector("#blueprintText"),
+  loadBlueprintTextBtn: document.querySelector("#loadBlueprintTextBtn"),
   exportBtn: document.querySelector("#exportBtn"),
+  exportDialog: document.querySelector("#exportDialog"),
+  startExportBtn: document.querySelector("#startExportBtn"),
   outputLink: document.querySelector("#outputLink"),
   exportProgress: document.querySelector("#exportProgress"),
   exportBar: document.querySelector("#exportBar"),
@@ -40,15 +47,20 @@ const els = {
   status: document.querySelector("#status"),
   frameSlider: document.querySelector("#frameSlider"),
   previewRenderBar: document.querySelector("#previewRenderBar"),
+  frameMarker: document.querySelector("#frameMarker"),
   playBtn: document.querySelector("#playBtn"),
-  playExportBtn: document.querySelector("#playExportBtn"),
+  loopPlayBtn: document.querySelector("#loopPlayBtn"),
+  prevSliceBtn: document.querySelector("#prevSliceBtn"),
+  nextSliceBtn: document.querySelector("#nextSliceBtn"),
   prevFrameBtn: document.querySelector("#prevFrameBtn"),
   nextFrameBtn: document.querySelector("#nextFrameBtn"),
   frameLabel: document.querySelector("#frameLabel"),
   delayInput: document.querySelector("#delayInput"),
-  delayMsLabel: document.querySelector("#delayMsLabel"),
   splitBtn: document.querySelector("#splitBtn"),
   dupeBtn: document.querySelector("#dupeBtn"),
+  dupeFuzzInput: document.querySelector("#dupeFuzzInput"),
+  speedDialog: document.querySelector("#speedDialog"),
+  speedDialogTitle: document.querySelector("#speedDialogTitle"),
   speedInput: document.querySelector("#speedInput"),
   speedSlider: document.querySelector("#speedSlider"),
   exportMode: document.querySelector("#exportMode"),
@@ -192,6 +204,15 @@ function selectedFrameRange() {
   return window.GifclipFramePreview.frameRangeForSlice(selectedSlice(), state.project.source.frameCount);
 }
 
+function activeFrameRanges() {
+  if (!state.project) return [];
+  return window.GifclipFramePreview.frameRangesForSlices(state.project.slices, state.project.source.frameCount);
+}
+
+function activeSlices() {
+  return state.project ? state.project.slices.filter((slice) => !slice.deleted) : [];
+}
+
 function sourceFrameRange() {
   if (!state.project) return { start: 0, end: 0 };
   return { start: 0, end: state.project.source.frameCount - 1 };
@@ -230,6 +251,7 @@ function frameRangeCount(ranges) {
 function renderTimelineCacheBar() {
   if (!els.previewRenderBar) return;
   els.previewRenderBar.innerHTML = "";
+  renderTimelineMarker();
   if (!state.project) return;
 
   const visible = selectedFrameRange();
@@ -254,6 +276,18 @@ function renderTimelineCacheBar() {
   appendSegments(state.cachedPreviewRanges, "cached");
 }
 
+function renderTimelineMarker() {
+  if (!els.frameMarker || !state.project) {
+    if (els.frameMarker) els.frameMarker.style.left = "0%";
+    return;
+  }
+  const visible = selectedFrameRange();
+  const visibleCount = Math.max(1, visible.end - visible.start);
+  const frame = window.GifclipFramePreview.clampFrameToRange(currentFrame(), visible);
+  const offset = visible.end === visible.start ? 0 : ((frame - visible.start) / visibleCount) * 100;
+  els.frameMarker.style.left = `${offset}%`;
+}
+
 function selectedSliceSpeed() {
   const slice = selectedSlice();
   return slice ? slice.speed : 1;
@@ -264,10 +298,11 @@ function sliceForFrame(frame) {
   return state.project.slices.find((slice) => frame >= slice.start && frame <= slice.end) || null;
 }
 
-function buildExportPlaybackPlan(project) {
+function buildPlaybackPlan(project, onlySliceId = null) {
   if (!project) return [];
   const frames = [];
   for (const slice of project.slices) {
+    if (onlySliceId && slice.id !== onlySliceId) continue;
     if (slice.deleted) continue;
     const duplicates = new Set(slice.duplicateFrames || []);
     let lastKept = null;
@@ -286,18 +321,18 @@ function buildExportPlaybackPlan(project) {
   return frames;
 }
 
-function refreshExportPlaybackPlan() {
-  state.exportPlaybackPlan = buildExportPlaybackPlan(state.project);
-  if (state.exportPlaybackIndex >= state.exportPlaybackPlan.length) {
-    state.exportPlaybackIndex = 0;
+function refreshPlaybackPlan(onlySliceId = null) {
+  state.playbackPlan = buildPlaybackPlan(state.project, onlySliceId);
+  if (state.playbackIndex >= state.playbackPlan.length) {
+    state.playbackIndex = 0;
   }
 }
 
-function exportPlanIndexForFrame(frame) {
-  const exact = state.exportPlaybackPlan.findIndex((item) => item.sourceIndex === frame);
+function playbackPlanIndexForFrame(frame) {
+  const exact = state.playbackPlan.findIndex((item) => item.sourceIndex === frame);
   if (exact !== -1) return exact;
-  const next = state.exportPlaybackPlan.findIndex((item) => item.sourceIndex > frame);
-  return next === -1 ? 0 : next;
+  const next = state.playbackPlan.findIndex((item) => item.sourceIndex > frame);
+  return next === -1 ? -1 : next;
 }
 
 function nextSliceId(slices) {
@@ -311,18 +346,24 @@ function nextSliceId(slices) {
 
 function setControlsEnabled(enabled) {
   els.exportBtn.disabled = !enabled || state.exporting;
+  els.configBtn.disabled = !enabled;
+  els.startExportBtn.disabled = !enabled || state.exporting;
   els.frameSlider.disabled = !enabled;
   els.playBtn.disabled = !enabled;
-  els.playExportBtn.disabled = !enabled;
+  els.loopPlayBtn.disabled = !enabled;
+  els.prevSliceBtn.disabled = !enabled;
+  els.nextSliceBtn.disabled = !enabled;
   els.prevFrameBtn.disabled = !enabled;
   els.nextFrameBtn.disabled = !enabled;
   els.splitBtn.disabled = !enabled;
   els.dupeBtn.disabled = !enabled || state.analyzingDuplicates;
+  els.dupeFuzzInput.disabled = !enabled;
   els.speedInput.disabled = !enabled;
   els.speedSlider.disabled = !enabled;
   els.delayInput.disabled = !enabled;
   els.copyBlueprintBtn.disabled = !enabled;
   els.downloadBlueprintBtn.disabled = !enabled;
+  els.pasteBlueprintBtn.disabled = !enabled;
   updateExportOptionControls();
 }
 
@@ -441,14 +482,12 @@ async function showFrame(frame, options = {}) {
 }
 
 function updatePlayButton(range = selectedFrameRange()) {
-  refreshExportPlaybackPlan();
-  const canPlaySlice = Boolean(state.project) && range.end > range.start;
-  const canPlayExport = state.exportPlaybackPlan.length > 1;
-  els.playBtn.disabled = !canPlaySlice;
-  els.playExportBtn.disabled = !canPlayExport;
-  els.playBtn.textContent = state.playing && state.playbackMode === "slice" ? "Pause" : "Play";
-  els.playExportBtn.textContent =
-    state.playing && state.playbackMode === "export" ? "Pause" : "Export play";
+  const playPlan = buildPlaybackPlan(state.project);
+  const loopPlan = buildPlaybackPlan(state.project, selectedSlice()?.id);
+  els.playBtn.disabled = playPlan.length <= 1;
+  els.loopPlayBtn.disabled = loopPlan.length <= 1 || range.end <= range.start;
+  els.playBtn.textContent = state.playing && state.playbackMode === "play" ? "⏸" : "▶";
+  els.loopPlayBtn.textContent = state.playing && state.playbackMode === "loop" ? "⏸" : "↻";
 }
 
 function updateExportOptionControls() {
@@ -490,10 +529,9 @@ function renderProject() {
     els.frameSlider.max = "0";
     els.frameSlider.value = "0";
     els.frameLabel.textContent = "0";
-    els.delayInput.value = "1";
-    els.delayMsLabel.textContent = "10 ms";
-    els.playBtn.textContent = "Play";
-    els.playExportBtn.textContent = "Export play";
+    els.delayInput.value = "10";
+    els.playBtn.textContent = "▶";
+    els.loopPlayBtn.textContent = "↻";
     els.speedInput.value = "1";
     els.speedSlider.value = "1";
     els.sliceList.innerHTML = '<div class="emptyState">No GIF loaded.</div>';
@@ -512,16 +550,19 @@ function renderProject() {
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
   const delayCs = Math.max(1, Math.round(Number(project.source.delaysCs[frame]) || 1));
-  els.delayInput.value = String(delayCs);
-  els.delayMsLabel.textContent = formatDelayMs(delayCs);
+  els.delayInput.value = String(delayCs * 10);
   updatePlayButton(range);
-  els.prevFrameBtn.disabled = frame <= range.start;
-  els.nextFrameBtn.disabled = frame >= range.end;
+  const frameRanges = activeFrameRanges();
+  els.prevFrameBtn.disabled = window.GifclipFramePreview.stepFrameAcrossRanges(frame, -1, frameRanges) === frame;
+  els.nextFrameBtn.disabled = window.GifclipFramePreview.stepFrameAcrossRanges(frame, 1, frameRanges) === frame;
+  els.prevSliceBtn.disabled = !window.GifclipFramePreview.sliceStepTarget(project.slices, state.selectedSliceId, -1);
+  els.nextSliceBtn.disabled = !window.GifclipFramePreview.sliceStepTarget(project.slices, state.selectedSliceId, 1);
 
   const speedValue = active ? String(active.speed) : "1";
   els.speedInput.value = speedValue;
   els.speedSlider.value = speedValue;
   els.dupeBtn.disabled = !active || state.analyzingDuplicates;
+  els.dupeBtn.textContent = state.analyzingDuplicates ? "Deleting..." : "Delete duplicates";
   els.speedInput.disabled = !active;
   els.speedSlider.disabled = !active;
   els.delayInput.disabled = !active;
@@ -535,6 +576,7 @@ function renderProject() {
     node.innerHTML = `
       <div class="sliceTop">
         <div class="sliceName">${slice.id}</div>
+        <button type="button" data-speed-slice="${slice.id}">${slice.speed}x</button>
         <button type="button" data-delete="${slice.id}">${slice.deleted ? "Restore" : "Delete"}</button>
       </div>
       <div class="sliceMeta">
@@ -552,40 +594,14 @@ function canSplitAt(frame) {
   return state.project.slices.some((slice) => frame >= slice.start && frame < slice.end);
 }
 
-async function loadSources() {
-  setStatus("Loading sources...");
-  const { sources } = await api("/api/sources");
-  els.sourceSelect.innerHTML = "";
-
-  if (!sources || sources.length === 0) {
-    const option = document.createElement("option");
-    option.textContent = "No GIF sources found";
-    option.value = "";
-    els.sourceSelect.appendChild(option);
-    els.loadBtn.disabled = true;
-    setStatus("No GIF sources found.");
-    return;
-  }
-
-  for (const source of sources) {
-    const option = document.createElement("option");
-    option.value = source.id || source.name;
-    option.textContent = `${source.name} (${source.origin || "root"}, ${formatBytes(source.bytes)})`;
-    els.sourceSelect.appendChild(option);
-  }
-
-  els.loadBtn.disabled = false;
-  setStatus("Choose a GIF to start.");
-}
-
 async function applyProject(project, options = {}) {
   state.project = project;
   state.cachedPreviewRanges = [];
   state.loadingPreviewRanges = [];
   const current = Number.isInteger(project.currentFrame) ? project.currentFrame : 0;
   state.selectedSliceId = sliceForFrame(current)?.id || project.slices[0]?.id || null;
-  state.exportPlaybackPlan = buildExportPlaybackPlan(project);
-  state.exportPlaybackIndex = 0;
+  refreshPlaybackPlan();
+  state.playbackIndex = 0;
   stopFrameHolds();
   state.framePreview.cancel();
   els.frameSlider.value = String(project.currentFrame || 0);
@@ -594,27 +610,6 @@ async function applyProject(project, options = {}) {
   await showFrame(currentFrame());
   const sourceName = project.source.basename || project.source.name || project.source.id;
   setStatus(options.status || `${sourceName}: ${project.source.width}x${project.source.height}, ${project.source.frameCount} frames.`);
-}
-
-async function loadSelectedSource() {
-  if (!els.sourceSelect.value) return;
-
-  setStatus("Loading GIF metadata...");
-  els.loadBtn.disabled = true;
-  els.outputLink.hidden = true;
-  els.exportProgress.hidden = true;
-  stopPlayback();
-
-  try {
-    const { project } = await api("/api/load", {
-      method: "POST",
-      body: JSON.stringify({ sourceId: els.sourceSelect.value })
-    });
-    state.sourceId = els.sourceSelect.value;
-    await applyProject(project);
-  } finally {
-    els.loadBtn.disabled = false;
-  }
 }
 
 async function uploadGif(file) {
@@ -631,14 +626,7 @@ async function uploadGif(file) {
     throw new Error(body.error || response.statusText);
   }
   const { project } = await response.json();
-  await loadSources();
-  const uploadedOption = [...els.sourceSelect.options].find((option) =>
-    option.value.endsWith(`:${project.source.basename}`)
-  );
-  if (uploadedOption) {
-    els.sourceSelect.value = uploadedOption.value;
-    state.sourceId = uploadedOption.value;
-  }
+  state.sourceId = project.source.id;
   await applyProject(project, { status: "" });
 }
 
@@ -669,14 +657,8 @@ function stopPlayback() {
 }
 
 function playbackDelayForFrame(frame) {
-  if (state.playbackMode === "export") {
-    return state.exportPlaybackPlan[state.exportPlaybackIndex]?.delayMs || 10;
-  }
-  return window.GifclipFramePreview.playbackDelayMs(
-    state.project?.source.delaysCs,
-    frame,
-    selectedSliceSpeed()
-  );
+  return state.playbackPlan[state.playbackIndex]?.delayMs ||
+    window.GifclipFramePreview.playbackDelayMs(state.project?.source.delaysCs, frame, selectedSliceSpeed());
 }
 
 function setPlaybackFrame(frame, options = {}) {
@@ -695,35 +677,34 @@ function schedulePlaybackTick() {
     state.playbackTimer = null;
     if (!state.playing || !state.project) return;
 
-    let nextFrame;
-    if (state.playbackMode === "export") {
-      if (state.exportPlaybackPlan.length === 0) {
+    if (state.playbackPlan.length === 0) {
+      stopPlayback();
+      return;
+    }
+
+    let nextIndex = state.playbackIndex + 1;
+    if (nextIndex >= state.playbackPlan.length) {
+      if (state.playbackMode !== "loop") {
         stopPlayback();
         return;
       }
-      state.exportPlaybackIndex = (state.exportPlaybackIndex + 1) % state.exportPlaybackPlan.length;
-      nextFrame = state.exportPlaybackPlan[state.exportPlaybackIndex].sourceIndex;
-    } else {
-      nextFrame = window.GifclipFramePreview.nextPlaybackFrame(currentFrame(), selectedFrameRange());
+      nextIndex = 0;
     }
+    state.playbackIndex = nextIndex;
+    const nextFrame = state.playbackPlan[state.playbackIndex].sourceIndex;
     setPlaybackFrame(nextFrame, { prewarm: false });
     schedulePlaybackTick();
   }, playbackDelayForFrame(currentFrame()));
 }
 
-function startPlayback(mode = "slice") {
+function startPlayback(mode = "play") {
   if (!state.project) return;
   state.playbackMode = mode;
-  refreshExportPlaybackPlan();
-
-  if (mode === "export") {
-    if (state.exportPlaybackPlan.length <= 1) return;
-    state.exportPlaybackIndex = exportPlanIndexForFrame(currentFrame());
-    setPlaybackFrame(state.exportPlaybackPlan[state.exportPlaybackIndex].sourceIndex, { prewarm: false });
-  } else {
-    const range = selectedFrameRange();
-    if (range.end <= range.start) return;
-  }
+  refreshPlaybackPlan(mode === "loop" ? selectedSlice()?.id : null);
+  if (state.playbackPlan.length <= 1) return;
+  state.playbackIndex = playbackPlanIndexForFrame(currentFrame());
+  if (state.playbackIndex < 0) return;
+  setPlaybackFrame(state.playbackPlan[state.playbackIndex].sourceIndex, { prewarm: false });
 
   stopFrameHolds();
   state.playing = true;
@@ -731,7 +712,7 @@ function startPlayback(mode = "slice") {
   schedulePlaybackTick();
 }
 
-function togglePlayback(mode = "slice") {
+function togglePlayback(mode = "play") {
   if (state.playing) {
     stopPlayback();
     return;
@@ -742,18 +723,32 @@ function togglePlayback(mode = "slice") {
 function canMoveFrame(delta) {
   if (!state.project) return false;
   const frame = currentFrame();
-  return window.GifclipFramePreview.stepFrameWithinRange(frame, delta, selectedFrameRange()) !== frame;
+  return window.GifclipFramePreview.stepFrameAcrossRanges(frame, delta, activeFrameRanges()) !== frame;
 }
 
 function moveFrame(delta) {
   if (!state.project) return;
   stopPlayback();
   const current = currentFrame();
-  const frame = window.GifclipFramePreview.stepFrameWithinRange(current, delta, selectedFrameRange());
+  const frame = window.GifclipFramePreview.stepFrameAcrossRanges(current, delta, activeFrameRanges());
   if (frame === current) return;
 
+  const slice = sliceForFrame(frame);
+  if (slice) state.selectedSliceId = slice.id;
   els.frameSlider.value = String(frame);
   updateFrameFromSlider(0);
+}
+
+function moveSlice(delta) {
+  if (!state.project) return;
+  const target = window.GifclipFramePreview.sliceStepTarget(state.project.slices, state.selectedSliceId, delta);
+  if (!target) return;
+  stopPlayback();
+  state.selectedSliceId = target.sliceId;
+  state.project.currentFrame = target.frame;
+  els.frameSlider.value = String(target.frame);
+  renderProject();
+  showFrame(target.frame).catch(ignorePreviewAbort);
 }
 
 function stopFrameHolds() {
@@ -860,25 +855,37 @@ function updateSelectedSpeed(value = els.speedInput.value, options = {}) {
   }
 
   slice.speed = speed;
-  refreshExportPlaybackPlan();
+  refreshPlaybackPlan(state.playbackMode === "loop" ? selectedSlice()?.id : null);
   renderProject();
   if (options.announce !== false) {
     setStatus(`${slice.id} speed set to ${speed}x.`);
   }
 }
 
+function openSpeedDialog(sliceId) {
+  const slice = state.project?.slices.find((item) => item.id === sliceId);
+  if (!slice) return;
+  state.selectedSliceId = slice.id;
+  state.speedEditingSliceId = slice.id;
+  els.speedDialogTitle.textContent = `${slice.id} Speed`;
+  els.speedInput.value = String(slice.speed);
+  els.speedSlider.value = String(slice.speed);
+  renderProject();
+  els.speedDialog.showModal();
+}
+
 function updateCurrentFrameDelay(value = els.delayInput.value) {
   if (!state.project) return;
   const frame = currentFrame();
-  const delayCs = Math.round(Number(value));
-  if (!Number.isFinite(delayCs) || delayCs <= 0) {
-    els.delayInput.value = String(state.project.source.delaysCs[frame] || 1);
-    els.delayMsLabel.textContent = formatDelayMs(els.delayInput.value);
-    setStatus("Frame delay must be a positive centisecond value.");
+  const delayMs = Math.round(Number(value));
+  if (!Number.isFinite(delayMs) || delayMs <= 0) {
+    els.delayInput.value = String((state.project.source.delaysCs[frame] || 1) * 10);
+    setStatus("Frame delay must be a positive millisecond value.");
     return;
   }
 
   stopPlayback();
+  const delayCs = Math.max(1, Math.round(delayMs / 10));
   const delaysCs = [...state.project.source.delaysCs];
   delaysCs[frame] = delayCs;
   state.project = {
@@ -888,9 +895,9 @@ function updateCurrentFrameDelay(value = els.delayInput.value) {
       delaysCs
     }
   };
-  refreshExportPlaybackPlan();
+  refreshPlaybackPlan(state.playbackMode === "loop" ? selectedSlice()?.id : null);
   renderProject();
-  setStatus(`Frame ${frame + 1} delay set to ${delayCs} cs.`);
+  setStatus(`Frame ${frame + 1} delay set to ${delayCs * 10} ms.`);
 }
 
 function selectSlice(sliceId) {
@@ -949,23 +956,52 @@ async function downloadBlueprint() {
 async function loadBlueprintFile(file) {
   if (!file) return;
   const blueprint = JSON.parse(await file.text());
+  await loadBlueprint(blueprint);
+}
+
+async function loadBlueprint(blueprint) {
   stopPlayback();
   const { project } = await api("/api/blueprint/load", {
     method: "POST",
-    body: JSON.stringify({ sourceId: state.sourceId || els.sourceSelect.value, blueprint })
+    body: JSON.stringify({
+      ...(state.sourceId ? { sourceId: state.sourceId } : {}),
+      blueprint
+    })
   });
   await applyProject(project, { status: "Blueprint loaded." });
 }
-
-els.loadBtn.addEventListener("click", () => {
-  loadSelectedSource().catch((error) => setStatus(error.message));
-});
 
 els.uploadInput.addEventListener("change", () => {
   const file = els.uploadInput.files?.[0];
   uploadGif(file).catch((error) => setStatus(error.message)).finally(() => {
     els.uploadInput.value = "";
   });
+});
+
+els.configBtn.addEventListener("click", () => {
+  els.configDialog.showModal();
+});
+
+els.exportBtn.addEventListener("click", () => {
+  if (!state.project) return;
+  els.exportDialog.showModal();
+});
+
+els.pasteBlueprintBtn.addEventListener("click", () => {
+  els.configDialog.close();
+  els.blueprintText.value = "";
+  els.pasteBlueprintDialog.showModal();
+});
+
+els.loadBlueprintTextBtn.addEventListener("click", () => {
+  try {
+    const blueprint = JSON.parse(els.blueprintText.value);
+    loadBlueprint(blueprint)
+      .then(() => els.pasteBlueprintDialog.close())
+      .catch((error) => setStatus(error.message));
+  } catch (error) {
+    setStatus(error.message);
+  }
 });
 
 els.copyBlueprintBtn.addEventListener("click", () => {
@@ -991,8 +1027,10 @@ els.frameSlider.addEventListener("change", () => {
   stopPlayback();
   updateFrameFromSlider(0);
 });
-els.playBtn.addEventListener("click", () => togglePlayback("slice"));
-els.playExportBtn.addEventListener("click", () => togglePlayback("export"));
+els.playBtn.addEventListener("click", () => togglePlayback("play"));
+els.loopPlayBtn.addEventListener("click", () => togglePlayback("loop"));
+els.prevSliceBtn.addEventListener("click", () => moveSlice(-1));
+els.nextSliceBtn.addEventListener("click", () => moveSlice(1));
 
 els.splitBtn.addEventListener("click", () => {
   splitLocal(currentFrame());
@@ -1003,6 +1041,13 @@ els.sliceList.addEventListener("click", (event) => {
   if (deleteId) {
     event.stopPropagation();
     toggleSliceDeleted(deleteId);
+    return;
+  }
+
+  const speedSliceId = event.target.dataset.speedSlice;
+  if (speedSliceId) {
+    event.stopPropagation();
+    openSpeedDialog(speedSliceId);
     return;
   }
 
@@ -1020,9 +1065,6 @@ els.speedSlider.addEventListener("input", () => {
   updateSelectedSpeed(els.speedSlider.value, { announce: false });
 });
 
-els.delayInput.addEventListener("input", () => {
-  els.delayMsLabel.textContent = formatDelayMs(els.delayInput.value);
-});
 els.delayInput.addEventListener("change", () => {
   updateCurrentFrameDelay(els.delayInput.value);
 });
@@ -1037,14 +1079,17 @@ els.dupeBtn.addEventListener("click", async () => {
   const slice = selectedSlice();
   if (!slice || state.analyzingDuplicates) return;
 
-  setStatus(`Analyzing ${slice.id} for adjacent duplicates...`);
   state.analyzingDuplicates = true;
   renderProject();
 
   try {
     const { job } = await api("/api/analyze-duplicates/start", {
       method: "POST",
-      body: JSON.stringify({ project: state.project, sliceId: slice.id })
+      body: JSON.stringify({
+        project: state.project,
+        sliceId: slice.id,
+        fuzz: Number(els.dupeFuzzInput.value) || 0
+      })
     });
     const { project, analysis } = await waitForDuplicateJob(job.id);
     state.project = project;
@@ -1060,7 +1105,7 @@ els.dupeBtn.addEventListener("click", async () => {
   }
 });
 
-els.exportBtn.addEventListener("click", async () => {
+els.startExportBtn.addEventListener("click", async () => {
   if (!state.project) return;
 
   stopPlayback();
@@ -1108,4 +1153,3 @@ state.frameHoldControllers = [
 ];
 
 renderProject();
-loadSources().catch((error) => setStatus(error.message));

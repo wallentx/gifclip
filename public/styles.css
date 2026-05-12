@@ -18,6 +18,7 @@ body {
 button,
 select,
 input,
+textarea,
 .fileButton {
   font: inherit;
 }
@@ -25,39 +26,25 @@ input,
 button,
 select,
 input[type="number"],
+textarea,
 .fileButton {
-  min-height: 36px;
   border: 1px solid #343d47;
   border-radius: 6px;
   background: #171d23;
   color: #e9edf2;
 }
 
-button {
-  padding: 0 12px;
-  cursor: pointer;
-}
-
+button,
 .fileButton {
-  display: inline-grid;
-  place-items: center;
+  min-height: 36px;
   padding: 0 12px;
   cursor: pointer;
-  white-space: nowrap;
-}
-
-#uploadInput,
-#blueprintInput {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 button:hover:not(:disabled),
 select:hover,
 input[type="number"]:hover:not(:disabled),
+textarea:hover,
 .fileButton:hover {
   border-color: #5e7184;
 }
@@ -78,6 +65,24 @@ a:hover {
   text-decoration: underline;
 }
 
+#uploadInput,
+#blueprintInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.srOnly {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .app {
   min-height: 100vh;
   display: grid;
@@ -85,63 +90,38 @@ a:hover {
 }
 
 .toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
   gap: 8px;
-  align-items: end;
-  padding: 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid #252d36;
   background: #13181e;
 }
 
-.exportProgress {
-  display: grid;
-  gap: 4px;
-  min-width: min(260px, 32vw);
-  align-self: center;
+.toolbarCenter {
+  justify-self: center;
 }
 
-.exportProgress progress {
-  width: 100%;
-  height: 12px;
-  accent-color: #7cc8ff;
-}
-
-.exportProgress span {
-  color: #aab5c0;
-  font-size: 12px;
-}
-
-.sourceGroup {
-  display: grid;
-  gap: 4px;
-  min-width: min(360px, 52vw);
-}
-
-.sourceGroup label,
-.controlBlock label,
-.panelTitle {
-  font-size: 12px;
-  font-weight: 650;
-  color: #bac4cf;
-}
-
-.sourceGroup select {
-  width: 100%;
-  padding: 0 10px;
+.iconButton {
+  inline-size: 40px;
+  min-height: 40px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .workspace {
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  background: #050607;
 }
 
-.previewPanel {
-  min-width: 0;
+.editorPanel {
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  background: #050607;
+  grid-template-rows: minmax(180px, 1fr) auto auto auto minmax(0, auto);
 }
 
 .previewStage {
@@ -163,7 +143,7 @@ a:hover {
 #preview {
   display: block;
   max-width: 100%;
-  max-height: calc(100vh - 104px);
+  max-height: calc(100vh - 276px);
   object-fit: contain;
 }
 
@@ -171,32 +151,45 @@ a:hover {
   display: none;
 }
 
-#status {
-  min-height: 38px;
-  padding: 9px 12px;
+.transportRow,
+.timelineBlock,
+.frameTools,
+.slicesPanel {
   border-top: 1px solid #1c232a;
-  color: #b6c0ca;
-  background: #0b0e11;
-  overflow-wrap: anywhere;
+  background: #0f1419;
 }
 
-.sidePanel {
-  min-height: 0;
-  overflow: auto;
-  border-left: 1px solid #252d36;
-  background: #11161b;
-  padding: 12px;
-}
-
-.controlBlock {
+.transportRow {
   display: grid;
-  gap: 8px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(7, minmax(36px, 1fr));
+  gap: 6px;
+  padding: 8px 10px;
 }
 
-#frameSlider {
-  width: 100%;
-  accent-color: #7cc8ff;
+.transportButton {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+  font-size: 21px;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.timelineBlock {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+
+.timelineBlock label,
+.panelTitle,
+.frameTools label,
+.exportOptionGrid label {
+  color: #bac4cf;
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .timelineSlider {
@@ -211,9 +204,9 @@ a:hover {
   position: absolute;
   left: 0;
   right: 0;
-  top: 4px;
-  height: 6px;
-  border-radius: 3px;
+  top: 13px;
+  height: 10px;
+  border-radius: 5px;
   background: #29323b;
   overflow: hidden;
   pointer-events: none;
@@ -234,114 +227,78 @@ a:hover {
   background: #57bd73;
 }
 
-.timelineSlider #frameSlider {
+#frameSlider {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
 }
 
-.frameControlRow {
+#frameSlider::-webkit-slider-runnable-track {
+  height: 10px;
+  background: transparent;
+}
+
+#frameSlider::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 30px;
+  margin-top: -10px;
+  background: transparent;
+  border: 0;
+}
+
+#frameSlider::-moz-range-track {
+  height: 10px;
+  background: transparent;
+}
+
+#frameSlider::-moz-range-thumb {
+  width: 22px;
+  height: 30px;
+  background: transparent;
+  border: 0;
+}
+
+.frameMarker {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+  color: #e9edf2;
+  font-size: 30px;
+  line-height: 34px;
+  text-shadow: 0 1px 4px #000;
+  pointer-events: none;
+}
+
+.frameTools {
   display: grid;
-  grid-template-columns: 58px 86px 58px minmax(0, 1fr) 58px;
+  grid-template-columns: auto minmax(76px, 120px) auto auto minmax(66px, 100px) minmax(132px, auto);
   align-items: center;
   gap: 8px;
+  padding: 8px 10px;
 }
 
-.frameControlRow button {
-  min-width: 0;
-  padding-inline: 0;
-  touch-action: none;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
+.frameTools input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
 }
 
-.muted {
+.unit {
   color: #98a5b2;
   font-size: 13px;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-#speedInput {
-  width: 128px;
-  padding: 0 10px;
-}
-
-.delayRow {
-  display: grid;
-  grid-template-columns: auto 96px auto minmax(70px, 1fr);
-  gap: 8px;
-  align-items: center;
-}
-
-.delayRow input {
-  width: 100%;
-  padding: 0 10px;
-}
-
-.exportOptions {
-  margin-bottom: 14px;
-  border: 1px solid #303a45;
-  border-radius: 8px;
-  background: #151b21;
-}
-
-.exportOptions summary {
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  padding: 0 10px;
-  color: #bac4cf;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.exportOptionGrid {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 8px;
-  padding: 0 10px 10px;
-  align-items: center;
-}
-
-.exportOptionGrid label {
-  color: #bac4cf;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.exportOptionGrid input,
-.exportOptionGrid select {
-  width: 100%;
-  padding: 0 10px;
-}
-
-.speedRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 92px;
-  gap: 8px;
-  align-items: center;
-}
-
-#speedSlider {
-  width: 100%;
-  accent-color: #7cc8ff;
-}
-
-.presetRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.sideFileButton {
-  grid-column: 1 / -1;
+.slicesPanel {
+  padding: 10px;
+  overflow: auto;
 }
 
 .sliceList {
@@ -374,8 +331,8 @@ a:hover {
 }
 
 .sliceTop {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
@@ -396,38 +353,159 @@ a:hover {
   font-size: 13px;
 }
 
-@media (max-width: 840px) {
-  .toolbar {
-    align-items: stretch;
-    flex-wrap: wrap;
+.popupDialog {
+  width: min(420px, calc(100vw - 24px));
+  border: 1px solid #343d47;
+  border-radius: 8px;
+  padding: 0;
+  background: #11161b;
+  color: #e9edf2;
+}
+
+.wideDialog {
+  width: min(680px, calc(100vw - 24px));
+}
+
+.popupDialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.dialogShell {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.dialogHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.iconGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.iconGrid button,
+.iconGrid .fileButton {
+  inline-size: 100%;
+}
+
+textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 10px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.exportOptionGrid {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.exportOptionGrid input,
+.exportOptionGrid select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.exportProgress {
+  display: grid;
+  gap: 4px;
+}
+
+.exportProgress progress {
+  width: 100%;
+  height: 12px;
+  accent-color: #7cc8ff;
+}
+
+.exportProgress span {
+  color: #aab5c0;
+  font-size: 12px;
+}
+
+.speedRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 8px;
+  align-items: center;
+}
+
+#speedSlider {
+  width: 100%;
+  accent-color: #7cc8ff;
+}
+
+#speedInput {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.presetRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 940px) {
+  .editorPanel {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-rows: minmax(0, 1fr) auto auto;
   }
 
-  .sourceGroup {
-    width: 100%;
-    min-width: 0;
+  .previewStage {
+    grid-column: 1;
+    grid-row: 1;
   }
 
-  .workspace {
-    grid-template-columns: 1fr;
+  .transportRow,
+  .timelineBlock,
+  .frameTools {
+    grid-column: 1;
   }
 
-  .sidePanel {
-    border-left: 0;
-    border-top: 1px solid #252d36;
-  }
-
-  #preview {
-    max-height: 56vh;
+  .slicesPanel {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    border-left: 1px solid #252d36;
+    border-top: 0;
   }
 }
 
-@media (max-width: 480px) {
-  .actions {
-    grid-template-columns: 1fr;
+@media (max-width: 620px) {
+  .frameTools {
+    grid-template-columns: auto minmax(76px, 1fr) auto;
   }
 
-  .toolbar button,
-  .toolbar a {
-    flex: 1 1 auto;
+  .frameTools label[for="dupeFuzzInput"],
+  #dupeFuzzInput,
+  #dupeBtn {
+    grid-column: auto;
+  }
+
+  #dupeBtn {
+    grid-column: 1 / -1;
   }
 }

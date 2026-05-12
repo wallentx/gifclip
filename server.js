@@ -188,6 +188,8 @@ async function handleApi(req, res) {
     if (!slice) throw new Error(`Unknown slice: ${body.sliceId}`);
     const job = duplicateJobs.start(project, slice, (updated) => {
       projects.set(updated.id, updated);
+    }, {
+      fuzz: body.fuzz
     });
     sendJson(res, 202, { job });
     return;

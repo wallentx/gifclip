@@ -32,6 +32,15 @@
     return { start, end };
   }
 
+  function frameRangesForSlices(slices, frameCount) {
+    if (!Array.isArray(slices)) return [];
+    return mergeFrameRanges(
+      slices
+        .filter((slice) => slice && !slice.deleted)
+        .map((slice) => frameRangeForSlice(slice, frameCount))
+    );
+  }
+
   function clampFrameToRange(frameIndex, range) {
     if (!range || !Number.isFinite(range.start) || !Number.isFinite(range.end)) return Math.trunc(frameIndex) || 0;
     const start = Math.trunc(range.start);
@@ -41,6 +50,40 @@
 
   function stepFrameWithinRange(currentFrame, delta, range) {
     return clampFrameToRange(currentFrame + delta, range);
+  }
+
+  function stepFrameAcrossRanges(currentFrame, delta, ranges) {
+    const merged = mergeFrameRanges(ranges);
+    if (merged.length === 0) return Math.trunc(currentFrame) || 0;
+    const current = Math.trunc(currentFrame) || 0;
+    const direction = Math.sign(delta);
+    if (direction === 0) return current;
+
+    if (direction > 0) {
+      for (let index = 0; index < merged.length; index += 1) {
+        const range = merged[index];
+        if (current < range.start) return range.start;
+        if (current < range.end) return current + 1;
+        if (current === range.end) return merged[index + 1]?.start ?? current;
+      }
+      return current;
+    }
+
+    for (let index = merged.length - 1; index >= 0; index -= 1) {
+      const range = merged[index];
+      if (current > range.end) return range.end;
+      if (current > range.start) return current - 1;
+      if (current === range.start) return merged[index - 1]?.end ?? current;
+    }
+    return current;
+  }
+
+  function sliceStepTarget(slices, selectedSliceId, delta) {
+    const activeSlices = Array.isArray(slices) ? slices.filter((slice) => slice && !slice.deleted) : [];
+    const currentIndex = activeSlices.findIndex((slice) => slice.id === selectedSliceId);
+    if (currentIndex === -1) return null;
+    const target = activeSlices[currentIndex + Math.sign(delta)];
+    return target ? { sliceId: target.id, frame: target.start } : null;
   }
 
   function nextPlaybackFrame(currentFrame, range) {
@@ -283,6 +326,7 @@
     clampFrame,
     createFramePreviewController,
     createHoldRepeatController,
+    frameRangesForSlices,
     frameRangeForSlice,
     frameUrl,
     holdRepeatIntervalMs,
@@ -290,8 +334,10 @@
     nextPlaybackFrame,
     nextPreviewWindowSize,
     playbackDelayMs,
+    sliceStepTarget,
     subtractFrameRanges,
     stepFrame,
+    stepFrameAcrossRanges,
     stepFrameWithinRange
   };
 });

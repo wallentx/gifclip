@@ -83,3 +83,22 @@ test("duplicate job store records failures", async () => {
   assert.equal(failed.done, true);
   assert.equal(failed.error, "duplicate scan failed");
 });
+
+test("duplicate job store forwards fuzzy analysis options", async () => {
+  let receivedOptions = null;
+  const store = createDuplicateJobStore({
+    analyzeAdjacentDuplicates: async (_source, start, end, options) => {
+      receivedOptions = options;
+      return { start, end, duplicateFrames: [1], fuzz: options.fuzz };
+    }
+  });
+
+  const started = store.start(project, project.slices[0], null, { fuzz: 4 });
+  const done = await waitFor(() => {
+    const job = store.get(started.id);
+    return job.done ? job : null;
+  });
+
+  assert.deepEqual(receivedOptions, { fuzz: 4 });
+  assert.equal(done.result.analysis.fuzz, 4);
+});

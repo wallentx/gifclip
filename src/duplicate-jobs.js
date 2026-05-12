@@ -17,7 +17,7 @@ function createDuplicateJobStore(options = {}) {
   const analyzeAdjacentDuplicates = options.analyzeAdjacentDuplicates || defaultAnalyzeAdjacentDuplicates;
   const jobs = new Map();
 
-  function start(project, slice, onDone) {
+  function start(project, slice, onDone, analysisOptions = {}) {
     const job = {
       id: randomUUID(),
       phase: "Queued",
@@ -32,7 +32,7 @@ function createDuplicateJobStore(options = {}) {
       try {
         job.phase = `Analyzing ${slice.id}`;
         job.progress = 10;
-        const analysis = await analyzeAdjacentDuplicates(project.source, slice.start, slice.end);
+        const analysis = await analyzeAdjacentDuplicates(project.source, slice.start, slice.end, analysisOptions);
         job.phase = "Marking duplicates";
         job.progress = 90;
         const updated = markDuplicateFrames(project, slice.id, analysis.duplicateFrames);

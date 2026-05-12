@@ -95,7 +95,7 @@ npm test
 npm run verify
 ```
 
-`npm run verify` expects `jobscout-demo.gif` in the repo root. It checks metadata, generates one preview frame, and exports a small lossless/native slice.
+`npm run verify` checks the first available GIF source, generates one preview frame, and exports a small lossless/native slice. If no GIF source exists yet, it exits successfully after reporting that sample verification was skipped.
 
 ## Benchmark Preview Extraction
 

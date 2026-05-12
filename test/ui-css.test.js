@@ -5,7 +5,7 @@ const test = require("node:test");
 
 test("frame hold buttons suppress touch text selection", () => {
   const css = fs.readFileSync(path.join(__dirname, "..", "public", "styles.css"), "utf8");
-  const block = /\.frameControlRow button\s*\{[^}]+\}/.exec(css)?.[0] || "";
+  const block = /\.transportButton\s*\{[^}]+\}/.exec(css)?.[0] || "";
 
   assert.match(block, /touch-action:\s*none/);
   assert.match(block, /-webkit-touch-callout:\s*none/);

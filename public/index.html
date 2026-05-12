@@ -9,109 +9,143 @@
   <body>
     <main class="app">
       <header class="toolbar" aria-label="Editor controls">
-        <div class="sourceGroup">
-          <label for="sourceSelect">Source</label>
-          <select id="sourceSelect"></select>
-        </div>
-        <button id="loadBtn" type="button">Load</button>
-        <label class="fileButton" for="uploadInput">Upload GIF</label>
+        <label class="iconButton fileButton" for="uploadInput" title="Upload GIF" aria-label="Upload GIF">⇧</label>
         <input id="uploadInput" type="file" accept="image/gif,.gif">
-        <button id="exportBtn" type="button" disabled>Export</button>
-        <a id="outputLink" hidden>Open export</a>
+
+        <button id="configBtn" class="iconButton toolbarCenter" type="button" title="Blueprint tools" aria-label="Blueprint tools" disabled>⚙</button>
+        <button id="exportBtn" class="iconButton" type="button" title="Export GIF" aria-label="Export GIF" disabled>⇩</button>
+      </header>
+
+      <section class="workspace">
+        <section class="editorPanel" aria-label="GIF editor">
+          <div id="previewStage" class="previewStage is-empty">
+            <img id="preview" alt="Current GIF frame preview">
+          </div>
+
+          <section class="transportRow" aria-label="Playback and edit controls">
+            <button id="playBtn" class="transportButton" type="button" title="Play through remaining slices" aria-label="Play through remaining slices" disabled>▶</button>
+            <button id="loopPlayBtn" class="transportButton" type="button" title="Loop selected slice" aria-label="Loop selected slice" disabled>↻</button>
+            <button id="prevSliceBtn" class="transportButton" type="button" title="Previous slice" aria-label="Previous slice" disabled>⏮</button>
+            <button id="splitBtn" class="transportButton" type="button" title="Split at current frame" aria-label="Split at current frame" disabled>⟂</button>
+            <button id="nextSliceBtn" class="transportButton" type="button" title="Next slice" aria-label="Next slice" disabled>⏭</button>
+            <button id="prevFrameBtn" class="transportButton" type="button" title="Previous frame" aria-label="Previous frame" disabled>‹</button>
+            <button id="nextFrameBtn" class="transportButton" type="button" title="Next frame" aria-label="Next frame" disabled>›</button>
+          </section>
+
+          <section class="timelineBlock" aria-label="Timeline">
+            <label for="frameSlider">Frame <span id="frameLabel">0</span></label>
+            <div class="timelineSlider">
+              <div id="previewRenderBar" class="previewRenderBar" aria-hidden="true"></div>
+              <span id="frameMarker" class="frameMarker" aria-hidden="true">⟊</span>
+              <input id="frameSlider" type="range" min="0" max="0" value="0" disabled>
+            </div>
+          </section>
+
+          <section class="frameTools" aria-label="Frame tools">
+            <label for="delayInput">Delay</label>
+            <input id="delayInput" type="number" min="10" max="600000" step="10" value="10" disabled>
+            <span class="unit">ms</span>
+            <label for="dupeFuzzInput">Fuzz</label>
+            <input id="dupeFuzzInput" type="number" min="0" max="255" step="0.25" value="0" disabled>
+            <button id="dupeBtn" type="button" disabled>Delete duplicates</button>
+          </section>
+
+          <section class="slicesPanel" aria-label="Slices">
+            <div class="panelTitle">Slices</div>
+            <div id="sliceList" class="sliceList"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="configDialog" class="popupDialog">
+      <form method="dialog" class="dialogShell">
+        <header class="dialogHeader">
+          <h2>Blueprint</h2>
+          <button class="iconButton" value="close" aria-label="Close">×</button>
+        </header>
+        <div class="iconGrid">
+          <button id="downloadBlueprintBtn" type="button" title="Download blueprint" aria-label="Download blueprint" disabled>💾</button>
+          <button id="copyBlueprintBtn" type="button" title="Copy blueprint text" aria-label="Copy blueprint text" disabled>⧉</button>
+          <button id="pasteBlueprintBtn" type="button" title="Paste blueprint text" aria-label="Paste blueprint text" disabled>⎘</button>
+          <label class="fileButton iconButton" for="blueprintInput" title="Upload blueprint file" aria-label="Upload blueprint file">⇧</label>
+          <input id="blueprintInput" type="file" accept="application/json,.json">
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="pasteBlueprintDialog" class="popupDialog wideDialog">
+      <form method="dialog" class="dialogShell">
+        <header class="dialogHeader">
+          <h2>Paste Blueprint</h2>
+          <button class="iconButton" value="close" aria-label="Close">×</button>
+        </header>
+        <textarea id="blueprintText" rows="12" spellcheck="false"></textarea>
+        <div class="dialogActions">
+          <button id="loadBlueprintTextBtn" type="button">Load</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="exportDialog" class="popupDialog">
+      <form method="dialog" class="dialogShell">
+        <header class="dialogHeader">
+          <h2>Export</h2>
+          <button class="iconButton" value="close" aria-label="Close">×</button>
+        </header>
+        <div class="exportOptionGrid">
+          <label for="exportMode">Method</label>
+          <select id="exportMode">
+            <option value="native">Native edit</option>
+            <option value="optimized">Optimize</option>
+          </select>
+
+          <label for="exportFps">Target FPS</label>
+          <input id="exportFps" type="number" min="1" max="60" step="1" value="9" disabled>
+
+          <label for="exportColors">Colors</label>
+          <input id="exportColors" type="number" min="2" max="256" step="1" value="32" disabled>
+
+          <label for="exportScaleWidth">Width</label>
+          <input id="exportScaleWidth" type="number" min="16" step="2" placeholder="Original" disabled>
+
+          <label for="exportOptimizeLevel">Gifsicle</label>
+          <select id="exportOptimizeLevel" disabled>
+            <option value="2">O2</option>
+            <option value="3" selected>O3</option>
+          </select>
+        </div>
         <div id="exportProgress" class="exportProgress" hidden>
           <progress id="exportBar" value="0" max="100"></progress>
           <span id="exportPhase">Idle</span>
         </div>
-      </header>
+        <div class="dialogActions">
+          <a id="outputLink" hidden>Open export</a>
+          <button id="startExportBtn" type="button" disabled>Export</button>
+        </div>
+      </form>
+    </dialog>
 
-      <section class="workspace">
-        <section class="previewPanel" aria-label="Frame preview">
-          <div id="previewStage" class="previewStage is-empty">
-            <img id="preview" alt="Current GIF frame preview">
-          </div>
-          <div id="status" role="status">Choose a GIF to start.</div>
-        </section>
+    <dialog id="speedDialog" class="popupDialog">
+      <form method="dialog" class="dialogShell">
+        <header class="dialogHeader">
+          <h2 id="speedDialogTitle">Slice Speed</h2>
+          <button class="iconButton" value="close" aria-label="Close">×</button>
+        </header>
+        <div class="speedRow">
+          <input id="speedSlider" type="range" min="0.1" max="16" step="0.1" value="1" disabled>
+          <input id="speedInput" type="number" min="0.1" max="16" step="0.1" value="1" disabled>
+        </div>
+        <div class="presetRow" aria-label="Speed presets">
+          <button type="button" data-speed="0.5">0.5x</button>
+          <button type="button" data-speed="1">1x</button>
+          <button type="button" data-speed="2">2x</button>
+          <button type="button" data-speed="4">4x</button>
+        </div>
+      </form>
+    </dialog>
 
-        <aside class="sidePanel" aria-label="Timeline and slices">
-          <section class="controlBlock">
-            <label for="frameSlider">Frame <span id="frameLabel">0</span></label>
-            <div class="frameControlRow">
-              <button id="playBtn" type="button" disabled>Play</button>
-              <button id="playExportBtn" type="button" disabled>Export play</button>
-              <button id="prevFrameBtn" type="button" disabled>Prev</button>
-              <div class="timelineSlider">
-                <div id="previewRenderBar" class="previewRenderBar" aria-hidden="true"></div>
-                <input id="frameSlider" type="range" min="0" max="0" value="0" disabled>
-              </div>
-              <button id="nextFrameBtn" type="button" disabled>Next</button>
-            </div>
-            <div class="delayRow">
-              <label for="delayInput">Frame delay</label>
-              <input id="delayInput" type="number" min="1" max="60000" step="1" value="1" disabled>
-              <span id="delayUnit" class="muted">cs</span>
-              <span id="delayMsLabel" class="muted">10 ms</span>
-            </div>
-          </section>
-
-          <section class="actions" aria-label="Slice actions">
-            <button id="splitBtn" type="button" disabled>Split here</button>
-            <button id="dupeBtn" type="button" disabled>Find duplicates</button>
-          </section>
-
-          <section class="controlBlock">
-            <label for="speedInput">Slice speed</label>
-            <div class="speedRow">
-              <input id="speedSlider" type="range" min="0.1" max="16" step="0.1" value="1" disabled>
-              <input id="speedInput" type="number" min="0.1" max="16" step="0.1" value="1" disabled>
-            </div>
-            <div class="presetRow" aria-label="Speed presets">
-              <button type="button" data-speed="0.5">0.5x</button>
-              <button type="button" data-speed="1">1x</button>
-              <button type="button" data-speed="2">2x</button>
-              <button type="button" data-speed="4">4x</button>
-            </div>
-          </section>
-
-          <details class="exportOptions">
-            <summary>Export options</summary>
-            <div class="exportOptionGrid">
-              <label for="exportMode">Method</label>
-              <select id="exportMode">
-                <option value="native">Native edit</option>
-                <option value="optimized">Optimize</option>
-              </select>
-
-              <label for="exportFps">Target FPS</label>
-              <input id="exportFps" type="number" min="1" max="60" step="1" value="9" disabled>
-
-              <label for="exportColors">Colors</label>
-              <input id="exportColors" type="number" min="2" max="256" step="1" value="32" disabled>
-
-              <label for="exportScaleWidth">Width</label>
-              <input id="exportScaleWidth" type="number" min="16" step="2" placeholder="Original" disabled>
-
-              <label for="exportOptimizeLevel">Gifsicle</label>
-              <select id="exportOptimizeLevel" disabled>
-                <option value="2">O2</option>
-                <option value="3" selected>O3</option>
-              </select>
-            </div>
-          </details>
-
-          <section class="actions" aria-label="Blueprint actions">
-            <button id="copyBlueprintBtn" type="button" disabled>Copy blueprint</button>
-            <button id="downloadBlueprintBtn" type="button" disabled>Download blueprint</button>
-            <label class="fileButton sideFileButton" for="blueprintInput">Load blueprint</label>
-            <input id="blueprintInput" type="file" accept="application/json,.json">
-          </section>
-
-          <section>
-            <div class="panelTitle">Slices</div>
-            <div id="sliceList" class="sliceList"></div>
-          </section>
-        </aside>
-      </section>
-    </main>
+    <div id="status" class="srOnly" role="status"></div>
     <script src="/frame-preview.js"></script>
     <script src="/app.js"></script>
   </body>
