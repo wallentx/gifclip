@@ -16,6 +16,20 @@ npm start
 
 Open `http://127.0.0.1:8787`.
 
+To run on a server or laptop and open it from another LAN device:
+
+```bash
+npm run start:lan
+```
+
+This binds to `0.0.0.0` and prints the LAN URL to open. You can also set it explicitly:
+
+```bash
+npm start -- --host 0.0.0.0 --advertise-host 192.168.1.50
+```
+
+`HOST`, `PORT`, and `GIFCLIP_ADVERTISE_HOST` provide the same settings through the environment. Binding to `0.0.0.0` exposes gifclip to devices that can reach that port, so keep it on a trusted LAN unless you add authentication in front of it.
+
 The app lists `.gif` files in the repo root, including `jobscout-demo.gif` when present.
 
 ## Performance knobs

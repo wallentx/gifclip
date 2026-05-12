@@ -9,6 +9,7 @@ const { sendError, sendJson, readBody, readJson, sendStatic } = require("./src/h
 const { blueprintFromProject, projectFromBlueprint, sourceMatchesBlueprint } = require("./src/blueprints");
 const { createProject, normalizeProject } = require("./src/project");
 const { cachedPreviewRanges, ensurePreview, ensurePreviewRange } = require("./src/preview");
+const { parseServerOptions } = require("./src/server-config");
 const { ensureRuntimeDirs } = require("./src/paths");
 const { listSources, resolveSource, saveUploadedSource } = require("./src/sources");
 const { checkRequiredTools } = require("./src/tools");
@@ -249,10 +250,13 @@ async function handle(req, res) {
 function main() {
   checkRequiredTools();
   ensureRuntimeDirs();
-  const port = Number(process.env.PORT || "8787");
+  const options = parseServerOptions();
   const server = http.createServer(handle);
-  server.listen(port, "127.0.0.1", () => {
-    console.log(`gifclip listening on http://127.0.0.1:${port}`);
+  server.listen(options.port, options.host, () => {
+    console.log(`gifclip listening on ${options.bindUrl}`);
+    if (options.advertiseUrl !== options.bindUrl) {
+      console.log(`open ${options.advertiseUrl}`);
+    }
   });
 }
 
