@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gifclip
+description: Local GIF editor backed by Node.js, ffmpeg, and gifsicle
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

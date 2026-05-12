@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gifclip.fullname" . }}
+  labels:
+    {{- include "gifclip.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gifclip.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gifclip.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: gifclip
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8787
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8787"
+            {{- range $name, $value := .Values.env }}
+            {{- if ne (toString $value) "" }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: runtime
+              mountPath: /app/.gifclip
+            - name: exports
+              mountPath: /app/exports
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: runtime
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "gifclip.fullname" . }}-runtime
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: exports
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "gifclip.fullname" . }}-exports
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -6,6 +6,7 @@ const {
   setSliceDeleted,
   setSliceSpeed,
   markDuplicateFrames,
+  setFrameDelay,
   buildFramePlan
 } = require("../src/project");
 
@@ -91,6 +92,22 @@ test("buildFramePlan applies slice speed to frame delays", () => {
     { sourceIndex: 4, delayCs: 25, sliceId: "slice-2" },
     { sourceIndex: 5, delayCs: 30, sliceId: "slice-2" }
   ]);
+});
+
+test("setFrameDelay updates a single source frame delay", () => {
+  const project = setFrameDelay(createProject(source), 2, 7);
+
+  assert.deepEqual(project.source.delaysCs, [10, 20, 7, 40, 50, 60]);
+  assert.deepEqual(buildFramePlan(project).frames.slice(1, 4), [
+    { sourceIndex: 1, delayCs: 20, sliceId: "slice-1" },
+    { sourceIndex: 2, delayCs: 7, sliceId: "slice-1" },
+    { sourceIndex: 3, delayCs: 40, sliceId: "slice-1" }
+  ]);
+});
+
+test("setFrameDelay rejects invalid frame delays", () => {
+  assert.throws(() => setFrameDelay(createProject(source), 2, 0), /positive/);
+  assert.throws(() => setFrameDelay(createProject(source), 8, 10), /outside source range/);
 });
 
 test("buildFramePlan omits duplicate frames after sanitizing them", () => {

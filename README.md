@@ -32,6 +32,51 @@ npm start -- --host 0.0.0.0 --advertise-host 192.168.1.50
 
 The app lists `.gif` files in the repo root, including `jobscout-demo.gif` when present.
 
+## Container
+
+Build and run the image locally:
+
+```bash
+docker build -t gifclip:latest .
+docker run --rm -p 8787:8787 gifclip:latest
+```
+
+Open `http://127.0.0.1:8787`.
+
+Uploads, runtime cache, and exports live in `/app/.gifclip` and `/app/exports` inside the container. Mount those paths if you want them to survive container removal:
+
+```bash
+docker run --rm -p 8787:8787 \
+  -v gifclip-runtime:/app/.gifclip \
+  -v gifclip-exports:/app/exports \
+  gifclip:latest
+```
+
+## Kubernetes
+
+A minimal Helm chart is available in `charts/gifclip`.
+
+For a local cluster that can see your locally built image, install with:
+
+```bash
+helm install gifclip ./charts/gifclip \
+  --set image.repository=gifclip \
+  --set image.tag=latest \
+  --set image.pullPolicy=IfNotPresent
+kubectl port-forward svc/gifclip 8787:8787
+```
+
+Then open `http://127.0.0.1:8787`.
+
+Set `persistence.enabled=true` to keep uploads and exports across pod restarts:
+
+```bash
+helm upgrade --install gifclip ./charts/gifclip \
+  --set image.repository=gifclip \
+  --set image.tag=latest \
+  --set persistence.enabled=true
+```
+
 ## Performance knobs
 
 gifclip defaults to laptop-oriented ffmpeg settings:

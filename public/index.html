@@ -26,7 +26,7 @@
 
       <section class="workspace">
         <section class="previewPanel" aria-label="Frame preview">
-          <div class="previewStage">
+          <div id="previewStage" class="previewStage is-empty">
             <img id="preview" alt="Current GIF frame preview">
           </div>
           <div id="status" role="status">Choose a GIF to start.</div>
@@ -45,7 +45,12 @@
               </div>
               <button id="nextFrameBtn" type="button" disabled>Next</button>
             </div>
-            <div id="delayLabel" class="muted">Delay: 0 cs</div>
+            <div class="delayRow">
+              <label for="delayInput">Frame delay</label>
+              <input id="delayInput" type="number" min="1" max="60000" step="1" value="1" disabled>
+              <span id="delayUnit" class="muted">cs</span>
+              <span id="delayMsLabel" class="muted">10 ms</span>
+            </div>
           </section>
 
           <section class="actions" aria-label="Slice actions">
@@ -66,6 +71,32 @@
               <button type="button" data-speed="4">4x</button>
             </div>
           </section>
+
+          <details class="exportOptions">
+            <summary>Export options</summary>
+            <div class="exportOptionGrid">
+              <label for="exportMode">Method</label>
+              <select id="exportMode">
+                <option value="native">Native edit</option>
+                <option value="optimized">Optimize</option>
+              </select>
+
+              <label for="exportFps">Target FPS</label>
+              <input id="exportFps" type="number" min="1" max="60" step="1" value="9" disabled>
+
+              <label for="exportColors">Colors</label>
+              <input id="exportColors" type="number" min="2" max="256" step="1" value="32" disabled>
+
+              <label for="exportScaleWidth">Width</label>
+              <input id="exportScaleWidth" type="number" min="16" step="2" placeholder="Original" disabled>
+
+              <label for="exportOptimizeLevel">Gifsicle</label>
+              <select id="exportOptimizeLevel" disabled>
+                <option value="2">O2</option>
+                <option value="3" selected>O3</option>
+              </select>
+            </div>
+          </details>
 
           <section class="actions" aria-label="Blueprint actions">
             <button id="copyBlueprintBtn" type="button" disabled>Copy blueprint</button>

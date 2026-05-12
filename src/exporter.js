@@ -142,6 +142,55 @@ function reportProgress(onProgress, phase, progress) {
   }
 }
 
+function boundedInteger(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(number)));
+}
+
+function normalizeExportOptions(options = {}) {
+  const method = options.method === "optimized" ? "optimized" : "native";
+  return {
+    method,
+    fps: method === "optimized" && Number(options.fps) > 0 ? boundedInteger(options.fps, null, 1, 60) : null,
+    colors: boundedInteger(options.colors, 32, 2, 256),
+    scaleWidth: method === "optimized" && Number(options.scaleWidth) > 0
+      ? boundedInteger(options.scaleWidth, null, 16, 20000)
+      : null,
+    optimizeLevel: boundedInteger(options.optimizeLevel, 2, 1, 3)
+  };
+}
+
+function optimizedGifFilter(options) {
+  const filters = [];
+  if (options.fps) {
+    filters.push(`fps=${options.fps}`);
+  }
+  if (options.scaleWidth) {
+    filters.push(`scale=${options.scaleWidth}:-2:flags=lanczos`);
+  }
+  const prefix = filters.length > 0 ? `${filters.join(",")},` : "";
+  return `[0:v]${prefix}split[s0][s1];[s0]palettegen=max_colors=${options.colors}:stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a`;
+}
+
+function ffmpegOptimizedGifArgs(inputPath, outputPath, options = {}) {
+  const normalized = normalizeExportOptions({ ...options, method: "optimized" });
+  return [
+    "-v",
+    "error",
+    "-threads",
+    "0",
+    "-i",
+    inputPath,
+    "-filter_complex",
+    optimizedGifFilter(normalized),
+    "-loop",
+    "0",
+    "-y",
+    outputPath
+  ];
+}
+
 async function exportLossless(project, options = {}) {
   const run = options.runTool || runTool;
   const onProgress = options.onProgress;
@@ -153,7 +202,7 @@ async function exportLossless(project, options = {}) {
   ensureDir(exportsDir);
 
   const tempPath = path.join(tmpDir, outputName("gifclip-temp"));
-  const outputPath = path.join(exportsDir, outputName(project.source && project.source.basename));
+  const outputPath = options.outputPath || path.join(exportsDir, outputName(project.source && project.source.basename));
   const tempPaths = [tempPath];
   let firstFrameRepaired = false;
 
@@ -211,12 +260,54 @@ async function exportLossless(project, options = {}) {
   };
 }
 
+async function exportGif(project, exportOptions = {}, options = {}) {
+  const normalizedOptions = normalizeExportOptions(exportOptions);
+  if (normalizedOptions.method === "native") {
+    return exportLossless(project, options);
+  }
+
+  const run = options.runTool || runTool;
+  const onProgress = options.onProgress;
+  ensureDir(tmpDir);
+  ensureDir(exportsDir);
+
+  const nativePath = path.join(tmpDir, outputName("gifclip-native"));
+  const encodedPath = path.join(tmpDir, outputName("gifclip-optimized"));
+  const outputPath = path.join(exportsDir, outputName(project.source && project.source.basename));
+  try {
+    const native = await exportLossless(project, { ...options, outputPath: nativePath });
+    reportProgress(onProgress, "Re-encoding optimized GIF", 94);
+    await run("ffmpeg", ffmpegOptimizedGifArgs(nativePath, encodedPath, normalizedOptions));
+    reportProgress(onProgress, `Applying gifsicle O${normalizedOptions.optimizeLevel}`, 98);
+    await run("gifsicle", [
+      `--optimize=${normalizedOptions.optimizeLevel}`,
+      encodedPath,
+      "--output",
+      outputPath
+    ]);
+    return {
+      ...native,
+      mode: "optimized",
+      nativeMode: native.mode,
+      exportOptions: normalizedOptions,
+      outputPath,
+      href: `/exports/${path.basename(outputPath)}`
+    };
+  } finally {
+    fs.rmSync(nativePath, { force: true });
+    fs.rmSync(encodedPath, { force: true });
+  }
+}
+
 module.exports = {
   frameSelectionArgs,
   delayGroups,
   delayBatchArgs,
   exportModeForProject,
   ffmpegFirstFrameArgs,
+  ffmpegOptimizedGifArgs,
   firstFrameIsFullCanvas,
+  normalizeExportOptions,
+  exportGif,
   exportLossless
 };

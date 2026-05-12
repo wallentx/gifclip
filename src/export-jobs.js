@@ -1,5 +1,5 @@
 const { randomUUID } = require("node:crypto");
-const { exportLossless: defaultExportLossless } = require("./exporter");
+const { exportGif: defaultExportGif } = require("./exporter");
 
 function snapshot(job) {
   return {
@@ -13,7 +13,11 @@ function snapshot(job) {
 }
 
 function createExportJobStore(options = {}) {
-  const exportLossless = options.exportLossless || defaultExportLossless;
+  const exportProject =
+    options.exportProject ||
+    (options.exportLossless
+      ? (project, _exportOptions, runOptions) => options.exportLossless(project, runOptions)
+      : defaultExportGif);
   const jobs = new Map();
 
   function update(job, patch) {
@@ -23,7 +27,7 @@ function createExportJobStore(options = {}) {
     }
   }
 
-  function start(project) {
+  function start(project, exportOptions = {}) {
     const job = {
       id: randomUUID(),
       phase: "Queued",
@@ -36,7 +40,7 @@ function createExportJobStore(options = {}) {
 
     Promise.resolve().then(async () => {
       try {
-        const result = await exportLossless(project, {
+        const result = await exportProject(project, exportOptions || {}, {
           onProgress: (event) => update(job, event)
         });
         job.phase = "Done";

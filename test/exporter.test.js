@@ -6,7 +6,10 @@ const {
   delayGroups,
   delayBatchArgs,
   exportModeForProject,
+  ffmpegOptimizedGifArgs,
   firstFrameIsFullCanvas,
+  normalizeExportOptions,
+  exportGif,
   exportLossless
 } = require("../src/exporter");
 const { normalizeProject } = require("../src/project");
@@ -108,6 +111,34 @@ test("firstFrameIsFullCanvas detects optimized partial first frames", () => {
   );
 });
 
+test("normalizeExportOptions keeps native export as default", () => {
+  assert.deepEqual(normalizeExportOptions(), {
+    method: "native",
+    fps: null,
+    colors: 32,
+    scaleWidth: null,
+    optimizeLevel: 2
+  });
+});
+
+test("ffmpegOptimizedGifArgs builds fps, scale, and palette filters", () => {
+  const args = ffmpegOptimizedGifArgs("in.gif", "out.gif", {
+    method: "optimized",
+    fps: 9,
+    colors: 64,
+    scaleWidth: 1520,
+    optimizeLevel: 3
+  });
+
+  assert.equal(args.includes("-threads"), true);
+  assert.equal(args.includes("in.gif"), true);
+  assert.equal(args.at(-1), "out.gif");
+  const filter = args[args.indexOf("-filter_complex") + 1];
+  assert.match(filter, /fps=9/);
+  assert.match(filter, /scale=1520:-2:flags=lanczos/);
+  assert.match(filter, /palettegen=max_colors=64:stats_mode=diff/);
+});
+
 test("exportLossless reports phase progress during native export", async () => {
   const events = [];
   const commands = [];
@@ -155,4 +186,34 @@ test("exportLossless repairs a partial first frame before optimizing", async () 
   assert.equal(exported.firstFrameRepaired, true);
   assert.equal(commands.some((command) => command.tool === "ffmpeg"), true);
   assert.deepEqual(commands.at(-1).args.slice(0, 1), ["--optimize=2"]);
+});
+
+test("exportGif runs optimized export after native frame selection", async () => {
+  const commands = [];
+  const exported = await exportGif(
+    projectWithSlice(),
+    { method: "optimized", fps: 9, colors: 64, scaleWidth: 1520, optimizeLevel: 3 },
+    {
+      runTool: async (tool, args) => {
+        commands.push({ tool, args });
+        if (tool === "gifsicle" && args[0] === "--info") {
+          return { stdout: Buffer.from("+ image #0 100x80\n") };
+        }
+        const outputIndex = args.indexOf("--output");
+        if (outputIndex !== -1) {
+          fs.writeFileSync(args[outputIndex + 1], "");
+        } else if (tool === "ffmpeg") {
+          fs.writeFileSync(args.at(-1), "");
+        }
+        return { stdout: Buffer.from("") };
+      }
+    }
+  );
+
+  const ffmpeg = commands.find((command) => command.tool === "ffmpeg");
+  assert.ok(ffmpeg);
+  assert.match(ffmpeg.args[ffmpeg.args.indexOf("-filter_complex") + 1], /max_colors=64/);
+  assert.deepEqual(commands.at(-1).args.slice(0, 1), ["--optimize=3"]);
+  assert.equal(exported.mode, "optimized");
+  assert.equal(exported.nativeMode, "lossless-native");
 });

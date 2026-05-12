@@ -3,7 +3,7 @@ const http = require("node:http");
 const { URL } = require("node:url");
 const { createDuplicateJobStore } = require("./src/duplicate-jobs");
 const { createExportJobStore } = require("./src/export-jobs");
-const { exportLossless } = require("./src/exporter");
+const { exportGif } = require("./src/exporter");
 const { loadGifInfo } = require("./src/gif-info");
 const { sendError, sendJson, readBody, readJson, sendStatic } = require("./src/http-utils");
 const { blueprintFromProject, projectFromBlueprint, sourceMatchesBlueprint } = require("./src/blueprints");
@@ -16,11 +16,32 @@ const { checkRequiredTools } = require("./src/tools");
 
 const projects = new Map();
 const duplicateJobs = createDuplicateJobStore();
-const exportJobs = createExportJobStore({ exportLossless });
+const exportJobs = createExportJobStore({ exportProject: exportGif });
 const MIN_PREVIEW_SIZE = 120;
 const MAX_PREVIEW_SIZE = 1200;
 const DEFAULT_PREVIEW_WINDOW_FRAMES = 121;
 const MAX_PREVIEW_WINDOW_FRAMES = 241;
+
+function clientProjectWithTrustedSource(trusted, clientProject) {
+  const source = { ...trusted.source };
+  if (Array.isArray(clientProject.source && clientProject.source.delaysCs)) {
+    if (clientProject.source.delaysCs.length < source.frameCount) {
+      throw new Error("Project source delaysCs must include one delay per frame");
+    }
+    source.delaysCs = clientProject.source.delaysCs.slice(0, source.frameCount).map((delay, index) => {
+      const normalized = Math.max(1, Math.round(Number(delay)));
+      if (!Number.isFinite(normalized)) {
+        throw new Error(`Project source delay for frame ${index} must be positive`);
+      }
+      return normalized;
+    });
+  }
+  return {
+    ...clientProject,
+    id: trusted.id,
+    source
+  };
+}
 
 function projectFromRequest(clientProject) {
   if (!clientProject || typeof clientProject.id !== "string") {
@@ -30,11 +51,7 @@ function projectFromRequest(clientProject) {
   if (!trusted) {
     throw new Error(`Unknown project: ${clientProject.id}`);
   }
-  return {
-    ...clientProject,
-    id: trusted.id,
-    source: trusted.source
-  };
+  return clientProjectWithTrustedSource(trusted, clientProject);
 }
 
 function previewSize(value) {
@@ -187,7 +204,7 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/export") {
     const body = await readJson(req);
     const project = projectFromRequest(body.project);
-    const exported = await exportLossless(project);
+    const exported = await exportGif(project, body.exportOptions);
     sendJson(res, 200, exported);
     return;
   }
@@ -195,7 +212,7 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/export/start") {
     const body = await readJson(req);
     const project = projectFromRequest(body.project);
-    const job = exportJobs.start(project);
+    const job = exportJobs.start(project, body.exportOptions);
     sendJson(res, 202, { job });
     return;
   }
@@ -264,4 +281,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { listSources, resolveFramePreviewPath, handleApi, handle };
+module.exports = { listSources, clientProjectWithTrustedSource, resolveFramePreviewPath, handleApi, handle };

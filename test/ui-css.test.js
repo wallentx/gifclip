@@ -12,3 +12,12 @@ test("frame hold buttons suppress touch text selection", () => {
   assert.match(block, /-webkit-user-select:\s*none/);
   assert.match(block, /user-select:\s*none/);
 });
+
+test("empty preview image is hidden behind a placeholder", () => {
+  const css = fs.readFileSync(path.join(__dirname, "..", "public", "styles.css"), "utf8");
+  const hiddenImageBlock = /#preview:not\(\[src\]\)\s*\{[^}]+\}/.exec(css)?.[0] || "";
+  const placeholderBlock = /\.previewStage\.is-empty::before\s*\{[^}]+\}/.exec(css)?.[0] || "";
+
+  assert.match(hiddenImageBlock, /display:\s*none/);
+  assert.match(placeholderBlock, /border:\s*1px dashed/);
+});

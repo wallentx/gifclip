@@ -35,6 +35,7 @@ const els = {
   exportProgress: document.querySelector("#exportProgress"),
   exportBar: document.querySelector("#exportBar"),
   exportPhase: document.querySelector("#exportPhase"),
+  previewStage: document.querySelector("#previewStage"),
   preview: document.querySelector("#preview"),
   status: document.querySelector("#status"),
   frameSlider: document.querySelector("#frameSlider"),
@@ -44,11 +45,17 @@ const els = {
   prevFrameBtn: document.querySelector("#prevFrameBtn"),
   nextFrameBtn: document.querySelector("#nextFrameBtn"),
   frameLabel: document.querySelector("#frameLabel"),
-  delayLabel: document.querySelector("#delayLabel"),
+  delayInput: document.querySelector("#delayInput"),
+  delayMsLabel: document.querySelector("#delayMsLabel"),
   splitBtn: document.querySelector("#splitBtn"),
   dupeBtn: document.querySelector("#dupeBtn"),
   speedInput: document.querySelector("#speedInput"),
   speedSlider: document.querySelector("#speedSlider"),
+  exportMode: document.querySelector("#exportMode"),
+  exportFps: document.querySelector("#exportFps"),
+  exportColors: document.querySelector("#exportColors"),
+  exportScaleWidth: document.querySelector("#exportScaleWidth"),
+  exportOptimizeLevel: document.querySelector("#exportOptimizeLevel"),
   copyBlueprintBtn: document.querySelector("#copyBlueprintBtn"),
   downloadBlueprintBtn: document.querySelector("#downloadBlueprintBtn"),
   blueprintInput: document.querySelector("#blueprintInput"),
@@ -160,6 +167,11 @@ function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return "";
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function formatDelayMs(delayCs) {
+  const delay = Math.max(1, Math.round(Number(delayCs) || 1));
+  return `${delay * 10} ms`;
 }
 
 function frameCount(slice) {
@@ -308,8 +320,10 @@ function setControlsEnabled(enabled) {
   els.dupeBtn.disabled = !enabled || state.analyzingDuplicates;
   els.speedInput.disabled = !enabled;
   els.speedSlider.disabled = !enabled;
+  els.delayInput.disabled = !enabled;
   els.copyBlueprintBtn.disabled = !enabled;
   els.downloadBlueprintBtn.disabled = !enabled;
+  updateExportOptionControls();
 }
 
 function ignorePreviewAbort(error) {
@@ -437,16 +451,47 @@ function updatePlayButton(range = selectedFrameRange()) {
     state.playing && state.playbackMode === "export" ? "Pause" : "Export play";
 }
 
+function updateExportOptionControls() {
+  const optimized = Boolean(state.project) && els.exportMode.value === "optimized";
+  els.exportFps.disabled = !optimized;
+  els.exportColors.disabled = !optimized;
+  els.exportScaleWidth.disabled = !optimized;
+  els.exportOptimizeLevel.disabled = !optimized;
+}
+
+function optionalPositiveInteger(input) {
+  const raw = String(input.value || "").trim();
+  if (!raw) return null;
+  const value = Math.round(Number(raw));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function getExportOptions() {
+  if (els.exportMode.value !== "optimized") {
+    return { method: "native" };
+  }
+  return {
+    method: "optimized",
+    fps: optionalPositiveInteger(els.exportFps),
+    colors: optionalPositiveInteger(els.exportColors) || 32,
+    scaleWidth: optionalPositiveInteger(els.exportScaleWidth),
+    optimizeLevel: optionalPositiveInteger(els.exportOptimizeLevel) || 3
+  };
+}
+
 function renderProject() {
   const project = state.project;
   setControlsEnabled(Boolean(project));
 
   if (!project) {
+    els.preview.removeAttribute("src");
+    els.previewStage.classList.add("is-empty");
     els.frameSlider.min = "0";
     els.frameSlider.max = "0";
     els.frameSlider.value = "0";
     els.frameLabel.textContent = "0";
-    els.delayLabel.textContent = "Delay: 0 cs";
+    els.delayInput.value = "1";
+    els.delayMsLabel.textContent = "10 ms";
     els.playBtn.textContent = "Play";
     els.playExportBtn.textContent = "Export play";
     els.speedInput.value = "1";
@@ -457,6 +502,7 @@ function renderProject() {
   }
 
   const active = selectedSlice();
+  els.previewStage.classList.remove("is-empty");
   const range = selectedFrameRange();
   const requestedFrame = Number.isInteger(project.currentFrame) ? project.currentFrame : currentFrame();
   const frame = window.GifclipFramePreview.clampFrameToRange(requestedFrame, range);
@@ -465,7 +511,9 @@ function renderProject() {
   els.frameSlider.max = String(range.end);
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
-  els.delayLabel.textContent = `Delay: ${project.source.delaysCs[frame] || 0} cs`;
+  const delayCs = Math.max(1, Math.round(Number(project.source.delaysCs[frame]) || 1));
+  els.delayInput.value = String(delayCs);
+  els.delayMsLabel.textContent = formatDelayMs(delayCs);
   updatePlayButton(range);
   els.prevFrameBtn.disabled = frame <= range.start;
   els.nextFrameBtn.disabled = frame >= range.end;
@@ -476,6 +524,7 @@ function renderProject() {
   els.dupeBtn.disabled = !active || state.analyzingDuplicates;
   els.speedInput.disabled = !active;
   els.speedSlider.disabled = !active;
+  els.delayInput.disabled = !active;
   els.splitBtn.disabled = !canSplitAt(frame);
   renderTimelineCacheBar();
 
@@ -818,6 +867,32 @@ function updateSelectedSpeed(value = els.speedInput.value, options = {}) {
   }
 }
 
+function updateCurrentFrameDelay(value = els.delayInput.value) {
+  if (!state.project) return;
+  const frame = currentFrame();
+  const delayCs = Math.round(Number(value));
+  if (!Number.isFinite(delayCs) || delayCs <= 0) {
+    els.delayInput.value = String(state.project.source.delaysCs[frame] || 1);
+    els.delayMsLabel.textContent = formatDelayMs(els.delayInput.value);
+    setStatus("Frame delay must be a positive centisecond value.");
+    return;
+  }
+
+  stopPlayback();
+  const delaysCs = [...state.project.source.delaysCs];
+  delaysCs[frame] = delayCs;
+  state.project = {
+    ...state.project,
+    source: {
+      ...state.project.source,
+      delaysCs
+    }
+  };
+  refreshExportPlaybackPlan();
+  renderProject();
+  setStatus(`Frame ${frame + 1} delay set to ${delayCs} cs.`);
+}
+
 function selectSlice(sliceId) {
   state.selectedSliceId = sliceId;
   stopPlayback();
@@ -945,6 +1020,15 @@ els.speedSlider.addEventListener("input", () => {
   updateSelectedSpeed(els.speedSlider.value, { announce: false });
 });
 
+els.delayInput.addEventListener("input", () => {
+  els.delayMsLabel.textContent = formatDelayMs(els.delayInput.value);
+});
+els.delayInput.addEventListener("change", () => {
+  updateCurrentFrameDelay(els.delayInput.value);
+});
+
+els.exportMode.addEventListener("change", updateExportOptionControls);
+
 document.querySelectorAll("[data-speed]").forEach((button) => {
   button.addEventListener("click", () => updateSelectedSpeed(button.dataset.speed));
 });
@@ -981,7 +1065,8 @@ els.exportBtn.addEventListener("click", async () => {
 
   stopPlayback();
   state.exporting = true;
-  setStatus("Starting lossless/native export...");
+  const exportOptions = getExportOptions();
+  setStatus(exportOptions.method === "optimized" ? "Starting optimized export..." : "Starting lossless/native export...");
   renderProject();
   els.outputLink.hidden = true;
   setExportProgress({ phase: "Queued", progress: 0 });
@@ -989,7 +1074,7 @@ els.exportBtn.addEventListener("click", async () => {
   try {
     const { job } = await api("/api/export/start", {
       method: "POST",
-      body: JSON.stringify({ project: state.project })
+      body: JSON.stringify({ project: state.project, exportOptions })
     });
     setExportProgress(job);
     const result = await waitForExportJob(job.id);

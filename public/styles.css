@@ -152,6 +152,14 @@ a:hover {
   padding: 12px;
 }
 
+.previewStage.is-empty::before {
+  content: "";
+  width: min(560px, 78vw);
+  aspect-ratio: 16 / 10;
+  border: 1px dashed #2c3640;
+  border-radius: 8px;
+}
+
 #preview {
   display: block;
   max-width: 100%;
@@ -160,10 +168,7 @@ a:hover {
 }
 
 #preview:not([src]) {
-  width: min(560px, 78vw);
-  aspect-ratio: 16 / 10;
-  border: 1px dashed #2c3640;
-  border-radius: 8px;
+  display: none;
 }
 
 #status {
@@ -264,6 +269,56 @@ a:hover {
 
 #speedInput {
   width: 128px;
+  padding: 0 10px;
+}
+
+.delayRow {
+  display: grid;
+  grid-template-columns: auto 96px auto minmax(70px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.delayRow input {
+  width: 100%;
+  padding: 0 10px;
+}
+
+.exportOptions {
+  margin-bottom: 14px;
+  border: 1px solid #303a45;
+  border-radius: 8px;
+  background: #151b21;
+}
+
+.exportOptions summary {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: #bac4cf;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.exportOptionGrid {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 10px 10px;
+  align-items: center;
+}
+
+.exportOptionGrid label {
+  color: #bac4cf;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.exportOptionGrid input,
+.exportOptionGrid select {
+  width: 100%;
   padding: 0 10px;
 }
 

@@ -47,6 +47,27 @@ test("export job store exposes phased progress and final result", async () => {
   assert.deepEqual(done.result, { href: "/exports/out.gif", frameCount: 3, mode: "lossless-native" });
 });
 
+test("export job store passes export options to exportProject", async () => {
+  const received = [];
+  const store = createExportJobStore({
+    exportProject: async (project, exportOptions) => {
+      received.push({ project, exportOptions });
+      return { href: "/exports/optimized.gif", frameCount: 3, mode: "optimized" };
+    }
+  });
+
+  const started = store.start({ id: "project-1" }, { method: "optimized", colors: 64 });
+  const done = await waitFor(() => {
+    const job = store.get(started.id);
+    return job.done ? job : null;
+  });
+
+  assert.equal(done.result.mode, "optimized");
+  assert.deepEqual(received, [
+    { project: { id: "project-1" }, exportOptions: { method: "optimized", colors: 64 } }
+  ]);
+});
+
 test("export job store records failed exports", async () => {
   const store = createExportJobStore({
     exportLossless: async () => {

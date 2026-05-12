@@ -11,7 +11,8 @@ function blueprintFromProject(project) {
       basename: normalized.source.basename,
       frameCount: normalized.source.frameCount,
       width: normalized.source.width,
-      height: normalized.source.height
+      height: normalized.source.height,
+      delaysCs: [...normalized.source.delaysCs]
     },
     currentFrame: normalized.currentFrame,
     slices: normalized.slices
@@ -36,7 +37,14 @@ function projectFromBlueprint(source, blueprint) {
   if (!sourceMatchesBlueprint(source, blueprint.source)) {
     throw new Error("Blueprint source does not match this GIF");
   }
-  const base = createProject(source);
+  const sourceWithDelays =
+    Array.isArray(blueprint.source.delaysCs) && blueprint.source.delaysCs.length >= source.frameCount
+      ? {
+          ...source,
+          delaysCs: blueprint.source.delaysCs.slice(0, source.frameCount).map((delay) => Math.max(1, Math.round(Number(delay))))
+        }
+      : source;
+  const base = createProject(sourceWithDelays);
   return normalizeProject({
     ...base,
     currentFrame: Number.isInteger(blueprint.currentFrame) ? blueprint.currentFrame : 0,

@@ -32,6 +32,12 @@ function assertSpeed(speed) {
   }
 }
 
+function assertFrameDelay(delayCs) {
+  if (!Number.isFinite(delayCs) || delayCs <= 0) {
+    throw new Error("Frame delay must be positive");
+  }
+}
+
 function cloneSlice(slice) {
   const cloned = {
     id: slice.id,
@@ -194,6 +200,25 @@ function setSliceSpeed(project, sliceId, speed) {
   }));
 }
 
+function setFrameDelay(project, frame, delayCs) {
+  const normalized = normalizeProject(project);
+  if (!Number.isInteger(frame) || frame < 0 || frame >= normalized.source.frameCount) {
+    throw new Error(`Frame delay target is outside source range: ${frame}`);
+  }
+  const rawDelay = Number(delayCs);
+  assertFrameDelay(rawDelay);
+  const delay = Math.max(1, Math.round(rawDelay));
+  const delaysCs = [...normalized.source.delaysCs];
+  delaysCs[frame] = delay;
+  return normalizeProject({
+    ...normalized,
+    source: {
+      ...normalized.source,
+      delaysCs
+    }
+  });
+}
+
 function markDuplicateFrames(project, sliceId, frames) {
   if (!Array.isArray(frames)) {
     throw new Error("Duplicate frames must be an array");
@@ -251,6 +276,7 @@ module.exports = {
   splitAtFrame,
   setSliceDeleted,
   setSliceSpeed,
+  setFrameDelay,
   markDuplicateFrames,
   normalizeProject,
   buildFramePlan

@@ -25,11 +25,13 @@ const source = {
 test("blueprintFromProject serializes source identity and slices", () => {
   const project = createProject(source);
   project.slices[0].speed = 2;
+  project.source = { ...project.source, delaysCs: [10, 25, 30] };
 
   const blueprint = blueprintFromProject(project);
 
   assert.equal(blueprint.schema, BLUEPRINT_SCHEMA);
   assert.equal(blueprint.source.sha256, "abc123");
+  assert.deepEqual(blueprint.source.delaysCs, [10, 25, 30]);
   assert.equal(blueprint.slices[0].speed, 2);
 });
 
@@ -41,7 +43,8 @@ test("projectFromBlueprint restores slices onto a matching source", () => {
       basename: "demo.gif",
       frameCount: 3,
       width: 100,
-      height: 80
+      height: 80,
+      delaysCs: [5, 15, 25]
     },
     currentFrame: 1,
     slices: [
@@ -53,6 +56,7 @@ test("projectFromBlueprint restores slices onto a matching source", () => {
   const project = projectFromBlueprint(source, blueprint);
 
   assert.equal(project.currentFrame, 1);
+  assert.deepEqual(project.source.delaysCs, [5, 15, 25]);
   assert.equal(project.slices.length, 2);
   assert.equal(project.slices[1].deleted, true);
 });
