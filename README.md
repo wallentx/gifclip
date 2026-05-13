@@ -1,5 +1,8 @@
 # gifclip
 
+<img width="1344" height="2064" alt="1000035954" src="https://github.com/user-attachments/assets/dd8963b2-7374-43ea-b038-3ce5ff8759c6" />
+
+
 Localhost GIF editor for lossless slice, speed, delete, duplicate-removal, and export workflows.
 
 ## Requirements
