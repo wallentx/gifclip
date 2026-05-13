@@ -55,6 +55,8 @@ const els = {
   prevFrameBtn: document.querySelector("#prevFrameBtn"),
   nextFrameBtn: document.querySelector("#nextFrameBtn"),
   frameLabel: document.querySelector("#frameLabel"),
+  toolFrameLabel: document.querySelector("#toolFrameLabel"),
+  delayLabel: document.querySelector("#delayLabel"),
   delayInput: document.querySelector("#delayInput"),
   splitBtn: document.querySelector("#splitBtn"),
   dupeBtn: document.querySelector("#dupeBtn"),
@@ -529,6 +531,8 @@ function renderProject() {
     els.frameSlider.max = "0";
     els.frameSlider.value = "0";
     els.frameLabel.textContent = "0";
+    els.toolFrameLabel.textContent = "0";
+    els.delayLabel.textContent = "Delay for frame 0";
     els.delayInput.value = "10";
     els.playBtn.textContent = "▶";
     els.loopPlayBtn.textContent = "↻";
@@ -549,6 +553,8 @@ function renderProject() {
   els.frameSlider.max = String(range.end);
   els.frameSlider.value = String(frame);
   els.frameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
+  els.toolFrameLabel.textContent = `${frame + 1} / ${project.source.frameCount}`;
+  els.delayLabel.textContent = `Delay for frame ${frame + 1}`;
   const delayCs = Math.max(1, Math.round(Number(project.source.delaysCs[frame]) || 1));
   els.delayInput.value = String(delayCs * 10);
   updatePlayButton(range);
@@ -562,7 +568,7 @@ function renderProject() {
   els.speedInput.value = speedValue;
   els.speedSlider.value = speedValue;
   els.dupeBtn.disabled = !active || state.analyzingDuplicates;
-  els.dupeBtn.textContent = state.analyzingDuplicates ? "Deleting..." : "Delete duplicates";
+  els.dupeBtn.textContent = state.analyzingDuplicates ? "Detecting..." : "Detect and delete duplicates";
   els.speedInput.disabled = !active;
   els.speedSlider.disabled = !active;
   els.delayInput.disabled = !active;

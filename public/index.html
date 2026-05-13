@@ -12,8 +12,10 @@
         <label class="iconButton fileButton" for="uploadInput" title="Upload GIF" aria-label="Upload GIF">⇧</label>
         <input id="uploadInput" type="file" accept="image/gif,.gif">
 
-        <button id="configBtn" class="iconButton toolbarCenter" type="button" title="Blueprint tools" aria-label="Blueprint tools" disabled>⚙</button>
-        <button id="exportBtn" class="iconButton" type="button" title="Export GIF" aria-label="Export GIF" disabled>⇩</button>
+        <div class="toolbarActions">
+          <button id="configBtn" class="iconButton" type="button" title="Blueprint tools" aria-label="Blueprint tools" disabled>⚙</button>
+          <button id="exportBtn" class="iconButton" type="button" title="Export GIF" aria-label="Export GIF" disabled>⇩</button>
+        </div>
       </header>
 
       <section class="workspace">
@@ -41,13 +43,24 @@
             </div>
           </section>
 
-          <section class="frameTools" aria-label="Frame tools">
-            <label for="delayInput">Delay</label>
-            <input id="delayInput" type="number" min="10" max="600000" step="10" value="10" disabled>
-            <span class="unit">ms</span>
-            <label for="dupeFuzzInput">Fuzz</label>
-            <input id="dupeFuzzInput" type="number" min="0" max="255" step="0.25" value="0" disabled>
-            <button id="dupeBtn" type="button" disabled>Delete duplicates</button>
+          <section class="toolSections" aria-label="Frame and duplicate tools">
+            <section class="toolCard" aria-label="Frame delay">
+              <div class="toolTitle">Frame <span id="toolFrameLabel">0</span></div>
+              <div class="toolRow">
+                <label id="delayLabel" for="delayInput">Delay for frame 0</label>
+                <input id="delayInput" type="number" min="10" max="600000" step="10" value="10" disabled>
+                <span class="unit">ms</span>
+              </div>
+            </section>
+
+            <details class="toolCard duplicateDetails" aria-label="Duplicate detection">
+              <summary class="toolTitle">Duplicates</summary>
+              <div class="toolRow duplicateRow">
+                <label for="dupeFuzzInput">Fuzz</label>
+                <input id="dupeFuzzInput" type="number" min="0" max="255" step="0.25" value="0" disabled>
+                <button id="dupeBtn" type="button" disabled>Detect and delete duplicates</button>
+              </div>
+            </details>
           </section>
 
           <section class="slicesPanel" aria-label="Slices">

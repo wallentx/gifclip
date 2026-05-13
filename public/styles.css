@@ -91,7 +91,7 @@ a:hover {
 
 .toolbar {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -99,8 +99,10 @@ a:hover {
   background: #13181e;
 }
 
-.toolbarCenter {
-  justify-self: center;
+.toolbarActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .iconButton {
@@ -153,7 +155,7 @@ a:hover {
 
 .transportRow,
 .timelineBlock,
-.frameTools,
+.toolSections,
 .slicesPanel {
   border-top: 1px solid #1c232a;
   background: #0f1419;
@@ -185,7 +187,7 @@ a:hover {
 
 .timelineBlock label,
 .panelTitle,
-.frameTools label,
+.toolCard label,
 .exportOptionGrid label {
   color: #bac4cf;
   font-size: 12px;
@@ -277,15 +279,49 @@ a:hover {
   pointer-events: none;
 }
 
-.frameTools {
+.toolSections {
   display: grid;
-  grid-template-columns: auto minmax(76px, 120px) auto auto minmax(66px, 100px) minmax(132px, auto);
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   padding: 8px 10px;
 }
 
-.frameTools input {
+.toolCard {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #303a45;
+  border-radius: 8px;
+  background: #151b21;
+}
+
+.toolTitle {
+  color: #d8e0e8;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.duplicateDetails summary {
+  cursor: pointer;
+}
+
+.duplicateDetails summary::marker {
+  color: #7cc8ff;
+}
+
+.toolRow {
+  display: grid;
+  grid-template-columns: auto minmax(82px, 130px) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.duplicateRow {
+  grid-template-columns: auto minmax(66px, 96px) minmax(176px, 1fr);
+}
+
+.toolCard input {
   width: 100%;
   min-height: 36px;
   padding: 0 8px;
@@ -482,7 +518,7 @@ textarea {
 
   .transportRow,
   .timelineBlock,
-  .frameTools {
+  .toolSections {
     grid-column: 1;
   }
 
@@ -495,14 +531,13 @@ textarea {
 }
 
 @media (max-width: 620px) {
-  .frameTools {
-    grid-template-columns: auto minmax(76px, 1fr) auto;
+  .toolSections {
+    grid-template-columns: 1fr;
   }
 
-  .frameTools label[for="dupeFuzzInput"],
-  #dupeFuzzInput,
-  #dupeBtn {
-    grid-column: auto;
+  .duplicateRow,
+  .toolRow {
+    grid-template-columns: auto minmax(76px, 1fr) auto;
   }
 
   #dupeBtn {
